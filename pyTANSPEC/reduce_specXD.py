@@ -274,25 +274,16 @@ def SpectralExtraction_subrout(PC):
             hdularc1.writeto(OutputCombLampSpec)
 
             #WL calibration
-            RefDispTableFile = []
-            OutDispTableFile = []
-            OutputWavlFile = []
-            for i in range((hdularc1[0].data).shape[0]):
-                pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-                RDTF = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}'.format(i) + '.txt')
-                ODTF =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'.format(i)
-                OWlF =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}'.format(i) + '.npy'
-                RefDispTableFile.append(RDTF)
-                OutDispTableFile.append(ODTF)
-                OutputWavlFile.append(OWlF)
+            pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+            RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
+            OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
+            OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
   
             ModelForDispersion =  PC.WLFITFUNC
-            SavePlots = 'Yes'
-            StackOrders = 'Yes'
-            _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, OutputWavlFile, 
-                                         ModelForDispersion, SavePlots, StackOrders])            
+            _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--OutputWavlFile", OutputWavlFile,
+                                         "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
             
-            AllOutWlSolFile = (os.path.splitext(OutputWavlFile[0])[0]).rstrip('0') + 'all' + '.npy'
+            AllOutWlSolFile = OutputWavlFile.format('all')
             OutputObjSpechdul = fits.open(OutputObjSpec)
             AllOutWlSol = np.load(AllOutWlSolFile)
             #to make wavelength data as ImageHdu
@@ -734,34 +725,10 @@ def CombDith_FlatCorr_subrout(PC,method="median"):
             outlogFILE.write(imglist[0]+' '+OutFCimg+'\n')
         outlogFILE.close()
         if PC.TODO=='P': print('Edit the spaces (if required) between image sets in file '+os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'FirstoneANDcombinedImages.List')+' to align and combine them in next step.')
-    print('All nights over...') 
-                
+    print('All nights over...')        
 
-#def imarithiraf(operand1,op,operand2,result,overwrite=False):
-#    """ numpy implementation of iraf's imarith """
-#    with fits.open(operand1) as hdulist:
-#        try :
-#            opnd2 = float(operand2)
-#        except ValueError:
-#            opnd2 = fits.getdata(operand2)
-#
-#        if op == '+':
-#            hdulist[0].data = hdulist[0].data + opnd2
-#        elif op == '-':
-#            hdulist[0].data = hdulist[0].data - opnd2
-#        elif op == '*':
-#            hdulist[0].data = hdulist[0].data * opnd2
-#        elif op == '/':
-#            hdulist[0].data = hdulist[0].data / opnd2
-#        else:
-#            print('Unknown operation : {0}'.format(op))
-#            return None
-#        hdulist[0].header['HISTORY'] = 'Operated {0} by {1}'.format(op,operand2)
-#        hdulist.writeto(result,overwrite=overwrite)        
+    
 
-
-###some issues in ds9 winows and imexam task, skpping this step for the time being
- ###################################################### some issues in ds9 winows and imexam task, skpping this step for the time being ##############
 def Manual_InspectCalframes_subrout(PC):
     """ This will display Flats, Sky and Lamps one after other, and based on user input select/reject """
     directories = LoadDirectories(PC,CONF=True)
@@ -911,42 +878,8 @@ def Manual_InspectObj_subrout(PC):
             else:
                 print('Enter either "r" or "aa", No other key works.')
                 sys.exit()
-#            try :
-                #os.environ['XPA_METHOD'] = "inet"
-#                display = imexam.connect(list(imexam.list_active_ds9())[0],  wait_time=20)
-                #display = imexam.connect(viewer='ginga')
-                #display = imexam.connect("7f000001:40299")
-#                time.sleep(4)
-#                display.load_fits(night+'/'+img)
-#                display.scale('zscale')
-#                display.zoomtofit()
-#            except :
-                # ds9 might not be open, hence open it and try again
-#                print('No ds9 seems to be open, I am opening a ds9..')
-                #os.environ['XPA_METHOD'] = "inet"
-#                display = imexam.connect(wait_time=20)
-#                time.sleep(4)
-#                display.load_fits(night+'/'+img)
-#                display.scale('zscale')
-#                display.zoomtofit()
                 
-            #print(objline)
-#            print ("Movig Forward")
-#            if PC.TODO == 'P':print('\n To discard this image press _q_ without pressing _a_')
-#            if PC.TODO == 'S':print('\n To discard this image press _q_ without pressing _k_')
-#            try:
-#                imx = display.imexam()
-#               display.setlog(on=False, level=logging.CRITICAL)
-#            except :
-#                print('IRAF ERROR : This image %s might be having problem, still choosing it'%(night+'/'+img))
-#                print(e)
-#                if len(imx) < 1 :imx=['center= %f  peak fwhm= %f bkg'%(newsX,FWHM)]  #A dummy entry..
-                
-#            if len(imx) < 1 : #Then discard this image
-#                print('Discarding image :'+night+'/'+img)
-#                continue
-            #Else, continue below
-            
+           
             if PC.TODO == 'P': #If we were doing photometry (For Future)
                 oldX = newX
                 oldY = newY
@@ -1280,9 +1213,6 @@ def CreateLogFilesFromFits_subrout(PC,hdu=0):
 
     directories = LoadDirectories(PC,CONF=True)
     LogFilename = PC.NIGHTLOGFILE
-    # List the set of coulmn entry after the filename in the log. Last three extra columns will be Xsize Ysize and filenumber.
-#    LogColumns = [PC.OBJECTHDR, PC.EXPTIMEHDR, PC.FILTERHDR, PC.GRATINGHDR, PC.LAMPHDR, PC.GAINHDR, PC.SLITHDR, PC.ARGONLHDR, PC.NEONLHDR, PC.CONT1LHDR, PC.CONT2LHDR, PC.DATEHDR, PC.UTHDR, PC.RAHDR, PC.DECHDR, PC.COMMENTHDR, PC.XSTARTHDR, PC.XENDHDR, PC.YSTARTHDR, PC.YENDHDR, PC.XBINHDR, PC.YBINHDR]
-    #LogColumns = [PC.OBJECTHDR, PC.EXPTIMEHDR, PC.FILTERHDR, PC.GRATINGHDR, PC.LAMPHDR, PC.GAINHDR, PC.SLITHDR, PC.ARGONLHDR, PC.NEONLHDR, PC.CONT1LHDR, PC.CONT2LHDR, PC.DATEHDR, PC.UTHDR, PC.RAHDR, PC.DECHDR, PC.COMMENTHDR]
     LogColumns = [PC.OBJECTHDR, PC.EXPTIMEHDR, PC.FILTERHDR, PC.GRATINGHDR, PC.LAMPHDR, PC.GAINHDR, PC.SLITHDR, PC.ARGONLHDR, PC.NEONLHDR, PC.CONT1LHDR, PC.CONT2LHDR, PC.DATEHDR, PC.UTHDR, PC.RAHDR, PC.DECHDR]
     
     #Final column heads will be: Filename LogColumns FileNumber
@@ -1382,14 +1312,6 @@ def LoadDirectories(PC,CONF=False):
         sys.exit(1)
     else :
         return directories
-    
-# To be removed. Nobody uses this to backup!!
-#def Backup_subrout(PC):
-#    """ Copies all the files in present directory to the ../PC.BACKUPDIR """
-#    os.makedirs('../'+PC.BACKUPDIR)
-#    print("Copying files to ../"+PC.BACKUPDIR)
-#    os.system('cp -r * ../'+PC.BACKUPDIR)
-
 
 def KeyboardInterrupt_handler():
     print('\nYou pressed Ctrl+C!')
