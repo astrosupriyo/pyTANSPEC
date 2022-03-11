@@ -19,7 +19,7 @@ setup(name='pyTANSPEC',
       author='Supriyo Ghosh',
       author_email='sbuphy2010@gmail.com',
       license='GPLv3+',
-      packages=['pyTANSPEC'],
+      packages=['pyTANSPEC','pyTANSPEC.libs'],
       entry_points = {
           'console_scripts': ['redspecXD=pyTANSPEC.reduce_specXD:main'],
       },
