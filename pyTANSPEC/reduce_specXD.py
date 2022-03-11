@@ -36,8 +36,8 @@ import configparser
 #from libs import reidentify as reident
 #from libs import spectrum_extractor as specextractor
 from .libs import imarith
-import reidentify as reident
-import spectrum_extractor as specextractor
+import WavelengthCalibrationTool.reidentify as reident
+import SpectrumExtractor.spectrum_extractor as specextractor
 #combine_frames, WriteFitsOutput, subtract_frames, divide_frames
 #from .libs.spectrum_extractor as specextractor
 #from .libs.reidentify as reident
