@@ -1,3 +1,5 @@
 include README.md
 include pyTANSPEC/data/*
+include pyTANSPEC/data/*/*
+include pyTANSPEC/data/*/*/*
 include pyTANSPEC/config/*.config
