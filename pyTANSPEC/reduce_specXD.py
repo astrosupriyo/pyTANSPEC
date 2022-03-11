@@ -297,8 +297,8 @@ def SpectralExtraction_subrout(PC):
                 OutputWavlFile.append(OWlF)
   
             ModelForDispersion =  PC.WLFITFUNC
-            SavePlots = 'Yes'
-            StackOrders = 'Yes'
+            SavePlots = 'SavePlots'
+            StackOrders = 'SavePlots'
             _ = reident.main(OutputCombLampSpec, RefDispTableFile, OutDispTableFile, OutputWavlFile, 
                                          ModelForDispersion, SavePlots,StackOrders)            
             
