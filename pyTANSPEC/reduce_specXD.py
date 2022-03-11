@@ -288,8 +288,8 @@ def SpectralExtraction_subrout(PC):
             OutDispTableFile = []
             OutputWavlFile = []
             for i in range((hdularc1[0].data).shape[0]):
-
-                RDTF = os.path.join(PC.RAWDATADIR,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}'.format(i) + '.txt')
+                pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+                RDTF = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}'.format(i) + '.txt')
                 ODTF =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'.format(i)
                 OWlF =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}'.format(i) + '.npy'
                 RefDispTableFile.append(RDTF)
@@ -469,11 +469,14 @@ def MakeMasterFlat(PC, NormContdata, slit):
     
     #getting data from master continuum flat
     #master continuum was created by average combine of normalised continuum flats observed on several nights.
-    MasterContiName = 'master-cont1xd_' + slit + '.fits'    
-    MasterContiData = fits.getdata(os.path.join(PC.RAWDATADIR,'data','CONTLAMPDIR',MasterContiName))
+    #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
+
+    MasterContiName = 'master-cont1xd_' + slit + '.fits' 
+    pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+    MasterContiData = fits.getdata(os.path.join(pkgpath,'data','CONTLAMPDIR',MasterContiName))
     
     #create the Mask..above this line EachNightNormContdata will be altered by MasterContiData
-    ContinuumLOCData = np.load(os.path.join(PC.RAWDATADIR,'data','CONTLAMPDIR','ContinuumCutLine.npy'))
+    ContinuumLOCData = np.load(os.path.join(pkgpath,'data','CONTLAMPDIR','ContinuumCutLine.npy'))
     Xvalue, Yvalue = ContinuumLOCData[:,0], ContinuumLOCData[:,1] 
     #fit the line...polynominal = 3
     z = np.polyfit(Xvalue, Yvalue, 3)
