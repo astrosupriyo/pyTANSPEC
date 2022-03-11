@@ -6,13 +6,11 @@
 import os
 import os.path
 import glob
-import fnmatch
 import argparse
 from astropy.io import fits
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
 import numpy as np
-import sys, traceback 
+import sys
 import numpy as np
 import warnings
 import re
@@ -21,7 +19,6 @@ import readline
 import shutil
 import subprocess
 import time
-import imexam
 import pkgutil
 from astropy.stats import mad_std
 from scipy import signal, ndimage
@@ -32,16 +29,9 @@ from astropy.io import ascii
 import astropy.table as table 
 import astroscrappy
 import configparser
-#from libs import imarith
-#from libs import reidentify as reident
-#from libs import spectrum_extractor as specextractor
 from .libs import imarith
 import WavelengthCalibrationTool.reidentify as reident
 import SpectrumExtractor.spectrum_extractor as specextractor
-#combine_frames, WriteFitsOutput, subtract_frames, divide_frames
-#from .libs.spectrum_extractor as specextractor
-#from .libs.reidentify as reident
-
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -297,8 +287,8 @@ def SpectralExtraction_subrout(PC):
                 OutputWavlFile.append(OWlF)
   
             ModelForDispersion =  PC.WLFITFUNC
-            _ = reident.main(OutputCombLampSpec, RefDispTableFile, OutDispTableFile, OutputWavlFile, 
-                                         ModelForDispersion, '--SavePlots','--StackOrders')            
+            _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, OutputWavlFile, 
+                                         ModelForDispersion, '--SavePlots','--StackOrders'])            
             
             AllOutWlSolFile = (os.path.splitext(OutputWavlFile[0])[0]).rstrip('0') + 'all' + '.npy'
             OutputObjSpechdul = fits.open(OutputObjSpec)
