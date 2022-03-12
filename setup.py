@@ -21,7 +21,7 @@ setup(name='pyTANSPEC',
       license='GPLv3+',
       packages=['pyTANSPEC','pyTANSPEC.libs'],
       entry_points = {
-          'console_scripts': ['redspecXD=pyTANSPEC.reduce_specXD:main'],
+          'console_scripts': ['pyxdspec=pyTANSPEC.reduce_specXD:main'],
       },
       install_requires=[
           'numpy',
