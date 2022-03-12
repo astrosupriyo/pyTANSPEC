@@ -177,19 +177,28 @@ def SpectralExtraction_subrout(PC):
             #ReFitApertureInXD = 'p1'
             APERTUREWINDOW = PC.APERTUREWINDOW
             BKGWINDOWS = PC.BKGWINDOWS            
-            ConfigFile = PC.SPECCONFIGFILE
-            
+                        
             #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
             pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
             ContinuumFile = os.path.join(pkgpath,'data/bd491296axd_s0.5Ahg-00031.Z.fits')
             ApertureLabel = os.path.join(pkgpath,'data/ApLabel_bd491296axd_s0.5Ahg-00031.Z.npy')
             ApertureTraceFilename = os.path.join(pkgpath,'data/bd491296axd_s0.5Ahg-00031.Z.fits_trace.pkl')
-            config_file = os.path.join(pkgpath,'config/spectrum_extractor_TANSPEC.config')
+            ConfigFileSpecExt = os.path.join(pkgpath,'config/spectrum_extractor_TANSPEC.config') #Default config file
+            
+            #Finding if any 'spectrum_extractor_TANSPEC.config' file exist in working directory
+            ConfigFileSpecExt_exists = os.path.exists(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))
+
+            if ConfigFileSpecExt_exists:
+                ConfigFileSpecExt = PC.SPECCONFIGFILE #customized config file if the users want
+                print('\n \033[1m' + 'Uses customized config file at {} users for spectrum extraction'.format(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))  + '\033[0m')
+            else:
+                ConfigFileSpecExt = ConfigFileSpecExt
+                print('\n \033[1m' + 'Uses default config file (https://github.com/astrosupriyo/pyTANSPEC/blob/main/pyTANSPEC/config/spectrum_extractor_TANSPEC.config) for spectrum extraction' + '\033[0m')
             
             #creating a new configuration file 
             config = configparser.ConfigParser()
             config.optionxform = str  # preserve the Case sensitivity of keys
-            config.read(config_file)
+            config.read(ConfigFileSpecExt)
             
             #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
             config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
@@ -314,26 +323,7 @@ def SpectralExtraction_subrout(PC):
             OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
         else:
              raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
-
-#        filt = Filt2finalspecs.keys()
-#        print(filt.replace(" ","_"))
-#        for filt in Filt2finalspecs.keys():
-#            filtstr = filt.replace(" ","_") # Replace spaces in filter name for easier filenames
-#            print(filtstr)
-#            with open('FinalwcSpectralistin_'+filtstr+'.txt','w') as foo:
-#                foo.write(' \n'.join(Filt2finalspecs[filt])+' \n')
-#                print(foo)
-#            print(Filt2finalspecs[filt][0])
-#            print('List of final spectra in FinalwcSpectralistin_'+filtstr+'.txt')
-#            if PC.SCOMBINE == 'YES':
-#                try:
-#                    iraf.scombine(input='@FinalwcSpectralistin_'+filtstr+'.txt',output=filtstr+'_avg_'+Filt2finalspecs[filt][0],combine='average',scale='median')
-#                    print('Averaging the spectra to final output '+filtstr+'_avg_'+Filt2finalspecs[filt][0])
-#                except iraf.IrafError as e :
-#                    print(e)
-#                    print('ERROR: Could not scombine images in FinalwcSpectralistin_'+filtstr+'.txt')
-
-            
+           
     print('All nights over...')  
     
 
@@ -561,10 +551,6 @@ def SubtractSmoothGradient(PC,inputimg,outputimg):
 #        print("Hence skipping Bad pixel interpolation")
 #        return
 
-#    iraf.proto(_doprint=0)
-#    iraf.fixpix.unlearn()
-#    iraf.fixpix(images=images,masks=PixelMask)
-
 def CombDith_FlatCorr_subrout(PC,method="median"):
     """ This will combine (default=median) with avsigclip the images in single dither and also create corresponding normalized flats [,sky] and divide[,subtract] for flat [,sky] correction """
     directories = LoadDirectories(PC,CONF=False)
@@ -726,8 +712,6 @@ def CombDith_FlatCorr_subrout(PC,method="median"):
         outlogFILE.close()
         if PC.TODO=='P': print('Edit the spaces (if required) between image sets in file '+os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'FirstoneANDcombinedImages.List')+' to align and combine them in next step.')
     print('All nights over...')        
-
-    
 
 def Manual_InspectCalframes_subrout(PC):
     """ This will display Flats, Sky and Lamps one after other, and based on user input select/reject """
@@ -1259,8 +1243,6 @@ def CreateLogFilesFromFits_subrout(PC,hdu=0):
     #Load directories list from the file
     directories = [dirs.rstrip().strip(' ').rstrip('/') for dirs in directoriesF if dirs.strip()] #Removing spaces or trailing / and ignore Blank empty lines
     directoriesF.close()
-
-
 
 def LoadDirectories(PC,CONF=False):
     """ Loads the directories and return the list of directories to do analysis """
