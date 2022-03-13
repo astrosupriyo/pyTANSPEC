@@ -967,7 +967,7 @@ def SelectionofFrames_subrout(PC):
 
         with open(os.path.join(PC.RAWDATADIR,night,LogFilename),'r') as imglogFILE :
             # Skip blank lines and Commented out lines with #
-            imglogFILElines = [imageLINE.rstrip() for imageLINE in imglogFILE if ((imageLINE.strip() is not '') and (imageLINE[0] !='#'))]
+            imglogFILElines = [imageLINE.rstrip() for imageLINE in imglogFILE if ((imageLINE.strip() != '') and (imageLINE[0] !='#'))]
             
         ObjList = [imgline.rstrip() for imgline in imglogFILElines if regexpObj.search(imgline.split()[0]) is not None ] 
 
@@ -1197,7 +1197,7 @@ def CreateLogFilesFromFits_subrout(PC,hdu=0):
 
     directories = LoadDirectories(PC,CONF=True)
     LogFilename = PC.NIGHTLOGFILE
-    LogColumns = [PC.OBJECTHDR, PC.EXPTIMEHDR, PC.FILTERHDR, PC.GRATINGHDR, PC.LAMPHDR, PC.GAINHDR, PC.SLITHDR, PC.ARGONLHDR, PC.NEONLHDR, PC.CONT1LHDR, PC.CONT2LHDR, PC.DATEHDR, PC.UTHDR, PC.RAHDR, PC.DECHDR]
+    LogColumns = [PC.OBJECTHDR, PC.EXPTIMEHDR, PC.FILTERHDR, PC.GRATINGHDR, PC.LAMPHDR, PC.GAINHDR, PC.SLITHDR, PC.ARGONLHDR, PC.NEONLHDR, PC.CONT1LHDR, PC.CONT2LHDR, PC.DATEHDR, PC.UTHDR, PC.RAHDR, PC.DECHDR, PC.COMMENTHDR]
     
     #Final column heads will be: Filename LogColumns FileNumber
 
@@ -1225,7 +1225,7 @@ def CreateLogFilesFromFits_subrout(PC,hdu=0):
                     if hkeys not in prihdr : prihdr[hkeys]='-NA-'
                 
                 outfile.write(img+' '+RowString.format(**prihdr)+' {0}\n'.format(i))
-
+        os.chdir(PC.RAWDATADIR)
     print("{0} saved in each night's directory. Edit in manually for errors like ACTIVE filter.".format(LogFilename))
 
 
@@ -1515,7 +1515,7 @@ class PipelineConfig(object):
                 with open(os.path.join(self.RAWDATADIR,night,self.NIGHTLOGFILE),'r') as imglogFILE:
                     # Skip blank lines and Commented out lines with #
                     images = [imageLINE.split()[0] for imageLINE in imglogFILE if \
-                              ((imageLINE.strip() is not '') and (imageLINE[0] !='#'))]
+                              ((imageLINE.strip() != '') and (imageLINE[0] !='#'))]
                 self.FrameDatabase[night] = set(images)
             self._FrameDatabaseInitialised = True
 
@@ -1569,8 +1569,12 @@ class InstrumentObject(object):
         """ Return the header object after standardising the values in it, specific to instrument."""
         
         if self.Name == 'TANSPEC':
-            del prihdr[self.PC.COMMENTHDR]
-#           prihdr[self.PC.COMMENTHDR] =  'None'
+            prihdr[self.PC.COMMENTHDR] = prihdr['COMMENT'][-1].split('/')[0][1:].strip()
+            del prihdr['COMMENT']
+            try:
+                del prihdr['']
+            except KeyError:
+                pass
             if  prihdr[self.PC.GRATINGHDR] == '-1':
                 prihdr[self.PC.GRATINGHDR]= 'grating1'
         
@@ -1812,6 +1816,5 @@ def main(raw_args=None):
     print("All tasks over... Enjoy!!!")
     print('Reduced data are at '+os.path.join(PC.RAWDATADIR,PC.OUTDIR))       
 if __name__ == "__main__":
-    main()
-            
+    main()           
 
