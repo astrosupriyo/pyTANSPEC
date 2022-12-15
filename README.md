@@ -5,4 +5,4 @@ Documentation of the pipeline as well as demo data for testing the pipeline can 
 
 Corresponding paper can be found at https://ui.adsabs.harvard.edu/abs/2022arXiv221204815G/abstract (Ghosh, Supriyo et al.). If you use pyTANSPEC package to reduce your data, please cite the paper (https://ui.adsabs.harvard.edu/abs/2022arXiv221204815G/exportcitation).
 
-For any queries, suggestions and comments, please do not hesitate to contact me at supriyoani89@gmail.com.
+For any queries, suggestions and comments, please do not hesitate to contact me at supriyoani89@gmail.com. Many thanks.
