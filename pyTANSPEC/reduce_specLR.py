@@ -130,11 +130,16 @@ def LrSpectralExtraction_subrout(PC):
             config.read(ConfigFileSpecExt)
             
             #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
-            config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
-            config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
-            config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
-            config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
-            config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
+            if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
+                config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
+            if len(config.get("tracing_settings", "Aperturelabel").strip()) < 1:
+                config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
+            if len(config.set("tracing_settings", "ApertureTraceFilename").strip()) < 1:
+                config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
+            if len(config.set("extraction_settings","ApertureWindow").strip()) < 1:
+                config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
+            if len(config.set("extraction_settings","BkgWindows").strip()) < 1:
+                config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
             
             #write new config file into the output directory.
             new_config_file_star = SpectrumFile.rstrip('.fits')+'.config'
@@ -217,7 +222,7 @@ def LrSpectralExtraction_subrout(PC):
             OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
             OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
   
-            ModelForDispersion =  PC.WLFITFUNC
+            ModelForDispersion =  PC.WLFITFUNC # Call recalibrate.main
             _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--OutputWavlFile", OutputWavlFile,
                                          "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
             
