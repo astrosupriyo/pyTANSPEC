@@ -1197,7 +1197,7 @@ def CreateLogFilesFromFits_subrout(PC,hdu=0):
 
     directories = LoadDirectories(PC,CONF=True)
     LogFilename = PC.NIGHTLOGFILE
-    LogColumns = [PC.OBJECTHDR, PC.EXPTIMEHDR, PC.FILTERHDR, PC.GRATINGHDR, PC.LAMPHDR, PC.GAINHDR, PC.SLITHDR, PC.ARGONLHDR, PC.NEONLHDR, PC.CONT1LHDR, PC.CONT2LHDR, PC.DATEHDR, PC.UTHDR, PC.RAHDR, PC.DECHDR, PC.COMMENTHDR]
+    LogColumns = [PC.OBJECTHDR, PC.EXPTIMEHDR, PC.FILTERHDR, PC.GRATINGHDR, PC.LAMPHDR, PC.GAINHDR, PC.SLITHDR, PC.ARGONLHDR, PC.NEONLHDR, PC.CONT1LHDR, PC.CONT2LHDR, PC.DATEHDR, PC.UTHDR, PC.RAHDR, PC.DECHDR, PC.COMMENTHDR, PC.FNUMHDR]
     
     #Final column heads will be: Filename LogColumns FileNumber
 
@@ -1223,6 +1223,7 @@ def CreateLogFilesFromFits_subrout(PC,hdu=0):
                 prihdr = Instrument.StandardiseHeader(prihdr,filename=img)
                 for hkeys in LogColumns :   #Capture if these keywords are missing in header, and replace with -NA-
                     if hkeys not in prihdr : prihdr[hkeys]='-NA-'
+                    if hkeys == 'FNUM': prihdr[hkeys] = int(prihdr[hkeys])
                 outfile.write(img+' '+RowString.format(**dict(prihdr))+' {0}\n'.format(i))
         os.chdir(PC.RAWDATADIR)
     print("{0} saved in each night's directory. Edit in manually for errors like ACTIVE filter.".format(LogFilename))
