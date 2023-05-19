@@ -131,16 +131,15 @@ def SpecMake(InputFiles, method = None, ScaleF = None):
 #Spectral Extraction and Wavelneght Calibration
 def SpectralExtraction_subrout(PC):
     if PC.TODO == 'SX':
-        print('You are doing extraction of XD mode spectra')
         return xdSpectralExtraction_subrout(PC)
     elif PC.TODO == 'SL':
-        print('You are doing extraction of LR mode spectra')
         return LrSpectralExtraction_subrout(PC)
 
 
 def LrSpectralExtraction_subrout(PC):
     """ Extracts spectra from 2d image and also applies wavelength calibration """
-
+    print('You are doing extraction of LR mode spectra')
+    
     directories = LoadDirectories(PC,CONF=False)
     for night in directories:
         PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
@@ -374,7 +373,8 @@ def LrSpectralExtraction_subrout(PC):
 
 def xdSpectralExtraction_subrout(PC):
     """ Extracts spectra from 2d image and also applies wavelength calibration """
-
+    print('You are doing extraction of XD mode spectra')
+    
     directories = LoadDirectories(PC,CONF=False)
     for night in directories:
         PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
@@ -444,7 +444,7 @@ def xdSpectralExtraction_subrout(PC):
             config.read(ConfigFileSpecExt)
             
             #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
-           if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
+            if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
                 config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
             if len(config.get("tracing_settings", "ApertureLabel").strip()) < 1:
                 config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
@@ -739,7 +739,7 @@ def DivideSmoothGradient(PC,inputimg,outputimg):
         #Normalise this continuum flat using its median smoothed version
         NormContdata = inputimgdata / smoothGrad
         #generating the combined conti flat
-        if PC.INSTRUMENT == 'TANSPEC' and PC.GRATINGHDR = 'GRATING1':
+        if PC.INSTRUMENT == 'TANSPEC' and PC.GRATINGHDR == 'GRATING1':
             hdulist[0].data = MakeMasterFlat(PC, NormContdata, slit) 
         else:
             hdulist[0].data = NormContdata      
