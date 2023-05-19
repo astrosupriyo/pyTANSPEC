@@ -6,7 +6,7 @@ def readme():
         return f.read()
 
 setup(name='pyTANSPEC',
-      version='0.0.1',
+      version='1.0.1',
       description='pyTANSPEC package: Python Tool for extracting 1D TANSPEC XD-spectra from 2D image',
       long_description = readme(),
       classifiers=[
