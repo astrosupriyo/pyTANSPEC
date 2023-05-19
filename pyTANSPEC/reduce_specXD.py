@@ -1223,8 +1223,7 @@ def CreateLogFilesFromFits_subrout(PC,hdu=0):
                 prihdr = Instrument.StandardiseHeader(prihdr,filename=img)
                 for hkeys in LogColumns :   #Capture if these keywords are missing in header, and replace with -NA-
                     if hkeys not in prihdr : prihdr[hkeys]='-NA-'
-                
-                outfile.write(img+' '+RowString.format(**prihdr)+' {0}\n'.format(i))
+                outfile.write(img+' '+RowString.format(**dict(prihdr))+' {0}\n'.format(i))
         os.chdir(PC.RAWDATADIR)
     print("{0} saved in each night's directory. Edit in manually for errors like ACTIVE filter.".format(LogFilename))
 
