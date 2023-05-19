@@ -201,11 +201,16 @@ def SpectralExtraction_subrout(PC):
             config.read(ConfigFileSpecExt)
             
             #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
-            config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
-            config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
-            config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
-            config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
-            config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
+           if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
+                config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
+            if len(config.get("tracing_settings", "ApertureLabel").strip()) < 1:
+                config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
+            if len(config.get("tracing_settings", "ApertureTraceFilename").strip()) < 1:
+                config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
+            if len(config.get("extraction_settings","ApertureWindow").strip()) < 1:
+                config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
+            if len(config.get("extraction_settings","BkgWindows").strip()) < 1:
+                config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
             
             #write new config file into the output directory.
             new_config_file_star = SpectrumFile.rstrip('.fits')+'.config'
