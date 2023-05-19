@@ -23,6 +23,7 @@ import pkgutil
 from astropy.stats import mad_std
 from scipy import signal, ndimage
 
+
 import datetime
 from astropy.time import Time
 from astropy.io import ascii
@@ -31,6 +32,7 @@ import astroscrappy
 import configparser
 from .libs import imarith
 import WavelengthCalibrationTool.reidentify as reident
+from WavelengthCalibrationTool import recalibrate
 import SpectrumExtractor.spectrum_extractor as specextractor
 
 import warnings
@@ -497,6 +499,15 @@ def xdSpectralExtraction_subrout(PC):
             OutputNeLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc2.fits')
             OutputNeLampSpec, Avg_XD_shift, PixDomain = specextractor.main([NeLampFile, new_config_file_lamp, 
                                                                                                                                  OutputNeLampSpec])
+
+            # Finding pixel offset
+            template_filename = os.path.join(pkgpath, 'data', 'arclamp_pixel_offset_template.npy')
+            template_file = np.load(template_filename)
+            Ar_spec = fits.getdata(OutputArLampSpec, ext=0)
+            arc_lamp = Ar_spec[7:9].flatten()
+            arc_filtered = ndimage.gaussian_filter(signal.medfilt(arc_lamp,3), sigma=10, radius=20)
+            shift = recalibrate.calculate_pixshift_with_phase_cross_correlation(template_file, arc_filtered)
+            print('This night have a pixel offset of', shift)
                
             #Combine Ar (7 orders from the redder end) and Ne (3 orders from the bluer end) lamps
             hdularc1 = fits.open(OutputArLampSpec)
@@ -1191,9 +1202,7 @@ def SelectionofFrames_subrout(PC):
     # Filter/Grism Column index in log file
     if PC.TODO == 'P' :
         FiltColumn = 3
-    elif PC.TODO == 'SX' :
-        FiltColumn = 4
-    elif PC.TODO == 'SL' :
+    elif PC.TODO[0] == 'S' :
         FiltColumn = 4
 
         
@@ -1285,7 +1294,7 @@ def SelectionofFrames_subrout(PC):
             filenumbregexp=re.compile(r'.*')
             if filt not in FiltREdic.keys() : 
                 if PC.TODO=='P': FiltREdic[filt] = '.*[Ff]lat.*'  #Setting default to *[Ff]lat*
-                elif PC.TODO=='S': FiltREdic[filt] = '.*conti1.*'
+                elif PC.TODO[0]=='S': FiltREdic[filt] = '.*conti1.*'
             #Ask user again to confirm or change if he/she needs to
             InpfiltRE = input("Enter Regular Expression for the flat of filters %s (default: %s) : "%(str(filt),FiltREdic[filt])).strip(' ')
             if InpfiltRE :
@@ -1302,7 +1311,7 @@ def SelectionofFrames_subrout(PC):
                     continue    #Skip these and go to the next object.
                 if regexpFilt.search(' '.join(shlex.split(imgline)[0:2])) is not None :
                     if filt == shlex.split(imgline)[FiltColumn]: # Matching filter
-                        if filenumbregexp.search(imgline.split()[-1]): # Last column is filenumber
+                        if filenumbregexp.search(imgline.split()[-2]): # Second last column is filenumber
                             FlatList.append(imgline.split()[0])
  #                           Flatsizedic[imgline.split()[0]] = tuple([int(i) for i in shlex.split(imgline)[-7:-1]])  # (Xbegin,Xend,Ybegin,Yend,Xbin,Ybin) of each flat
             Flatlistdic[filt] = FlatList  #Saving flat list for this filter set
@@ -1336,7 +1345,7 @@ def SelectionofFrames_subrout(PC):
 #                Skylistdic[filt] = SkyList  #Saving Sky list for this filter set
 
         #Now if We are doing Spectroscopy, Find the corresponding Lamp lamps also
-        if PC.TODO == 'S':
+        if PC.TODO[0] == 'S':
             Lamplistdic = dict()
             NeLamplistdic = dict()
             print("Below in addition, if needed you can enter the starting and ending filenumbers separated by space.")
@@ -1370,11 +1379,11 @@ def SelectionofFrames_subrout(PC):
 #                        continue    #Skip these and go to the next object.
                     if regexpLamp.search(' '.join(shlex.split(imgline)[0:2])) is not None :
                         if filt == shlex.split(imgline)[FiltColumn]: # Matching filter
-                            if filenumbregexp.search(imgline.split()[-1]): # Last column is filenumber
+                            if filenumbregexp.search(imgline.split()[-2]): # 2nd last column is filenumber
                                 LampList.append(imgline.split()[0])
                     if regexpNeLamp.search(' '.join(shlex.split(imgline)[0:2])) is not None :
                         if filt == shlex.split(imgline)[FiltColumn]: # Matching filter
-                            if Nefilenumbregexp.search(imgline.split()[-1]): # Last column is filenumber
+                            if Nefilenumbregexp.search(imgline.split()[-2]): # 2nd last column is filenumber
                                 LampListNe.append(imgline.split()[0])
                 Lamplistdic[filt]=LampList  #Saving Ar-Lamp list for this filter set
                 NeLamplistdic[filt]=LampListNe  #Saving Ne-Lamp list for this filter set                
@@ -1382,7 +1391,7 @@ def SelectionofFrames_subrout(PC):
         #Now, load the Object list and write to a file the Obj and corresponding flats/Lamps
         ObjFlatFILE = open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Flat.List'),'w')
 #        ObjBiasFILE = open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Bias.List'),'w')
-        if PC.TODO=='S': ObjLampFILE = open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Lamp.List'),'w')
+        if PC.TODO[0]=='S': ObjLampFILE = open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Lamp.List'),'w')
 #        if PC.SEPARATESKY=='Y': ObjSkyFILE = open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Sky.List'),'w')
 
         with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects.List'),'r') as allobjectList :
@@ -1405,7 +1414,7 @@ def SelectionofFrames_subrout(PC):
 #                else: print('Find bias for this night, copy here and rerun pipeline for this directory.')
 #                ObjBiasFILE.write(Name+' \n') LamplistdicNe[filt]
                 
-            if PC.TODO=='S' :ObjLampFILE.write(Name+'  '+' '.join(Lamplistdic[FiltOrGrism])+'  '+' '.join(NeLamplistdic[FiltOrGrism])+'\n')
+            if PC.TODO[0]=='S' :ObjLampFILE.write(Name+'  '+' '.join(Lamplistdic[FiltOrGrism])+'  '+' '.join(NeLamplistdic[FiltOrGrism])+'\n')
 #            if PC.SEPARATESKY=='Y': ObjSkyFILE.write(Name+'  '+' '.join(Skylistdic[FiltOrGrism])+'\n')
 #        ObjFlatFILE.close()
 #        ObjBiasFILE.close()
@@ -1434,7 +1443,7 @@ def SelectionofFrames_subrout(PC):
         ObjFlatFILE.close()
         subprocess.call(PC.TEXTEDITOR.split()+[os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Flat.List')])
 #        subprocess.call(PC.TEXTEDITOR.split()+[os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Bias.List')])
-        if PC.TODO == 'S': 
+        if PC.TODO[0] == 'S': 
             ObjLampFILE.close()
             subprocess.call(PC.TEXTEDITOR.split()+[os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Lamp.List')])
         #if PC.SEPARATESKY == 'Y': 
@@ -1752,7 +1761,8 @@ class PipelineConfig(object):
 
                     elif con.split()[0] == "NIGHTLOGFILE=" :
                         self.NIGHTLOGFILE = con.split()[1]
-
+                    elif con.split()[0] == "FNUM=" : # Varghese added this
+                        self.FNUMHDR = con.split()[1]
 
     # Some helper functions for obtaining the full path to files.
     # They are not necessory for many steps.
