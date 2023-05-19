@@ -943,9 +943,12 @@ def SelectionofFrames_subrout(PC):
     # Filter/Grism Column index in log file
     if PC.TODO == 'P' :
         FiltColumn = 3
-    elif PC.TODO == 'S' :
+    elif PC.TODO == 'SX' :
+        FiltColumn = 4
+    elif PC.TODO == 'SL' :
         FiltColumn = 4
 
+        
     print('*'*10) 
     print('For Regular Expression rules See: http://docs.python.org/2/howto/regex.html#regex-howto')
     print('Some examples of typical input are shown below')
@@ -976,7 +979,7 @@ def SelectionofFrames_subrout(PC):
         #Selecting Obj list
         with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects.List'),'w') as ObjFILE, open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjectsSky.List'),'w') as ObjFILEsky :
             for Objline in ObjList:
-                if (PC.TODO=='P' and shlex.split(Objline)[6].upper() =="-NA-" and shlex.split(Objline)[7].upper() =="MIRROR") or (PC.TODO=='S' and shlex.split(Objline)[4].upper() =="GRATING1" and shlex.split(Objline)[6].upper() !="-NA-" and shlex.split(Objline)[7].upper() !="MIRROR") :
+                if (PC.TODO=='P' and shlex.split(Objline)[6].upper() =="-NA-" and shlex.split(Objline)[7].upper() =="MIRROR") or (PC.TODO=='SX' and shlex.split(Objline)[4].upper() =="GRATING1" and shlex.split(Objline)[6].upper() !="-NA-" and shlex.split(Objline)[7].upper() !="MIRROR") or (PC.TODO=='SL' and shlex.split(Objline)[4].upper() =="GRATING2" and shlex.split(Objline)[6].upper() !="-NA-" and shlex.split(Objline)[7].upper() !="MIRROR") :
                     #continue
                     Name = shlex.split(Objline)[0]
                     FiltOrGrism = shlex.split(Objline)[FiltColumn]
