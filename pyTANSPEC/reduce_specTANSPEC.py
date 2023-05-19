@@ -1183,6 +1183,7 @@ def SelectionofFrames_subrout(PC):
             
         print('Edit, save (if required) and close the Flat,Bias/Lamp/Sky list associations for this night :'+night)
         input("Press Enter to continue...")
+        ObjFlatFILE.close()
         subprocess.call(PC.TEXTEDITOR.split()+[os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Flat.List')])
 #        subprocess.call(PC.TEXTEDITOR.split()+[os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Bias.List')])
         if PC.TODO == 'S': 
