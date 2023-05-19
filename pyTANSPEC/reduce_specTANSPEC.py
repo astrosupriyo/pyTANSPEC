@@ -131,8 +131,10 @@ def SpecMake(InputFiles, method = None, ScaleF = None):
 #Spectral Extraction and Wavelneght Calibration
 def SpectralExtraction_subrout(PC):
     if PC.TODO == 'SX':
+        print('You are doing extraction of XD mode spectra')
         return xdSpectralExtraction_subrout(PC)
     elif PC.TODO == 'SL':
+        print('You are doing extraction of LR mode spectra')
         return LrSpectralExtraction_subrout(PC)
 
 
@@ -903,7 +905,7 @@ def CombDith_FlatCorr_subrout(PC,method="median"):
 #                iraf.imarith(operand1=os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,OutCombimg),op="-",operand2=outskyname,result=os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,OutSSimg))
  #               OutCombimg=OutSSimg  #Updating the new _SS appended input filename to continue as if nothing happened here.
             #Now divide by flat...
-            if (PC.TODO == 'S') and (PC.CONTINUUMGRADREMOVE == 'Y'):
+            if (PC.TODO == 'SX' or PC.TODO == 'SL') and (PC.CONTINUUMGRADREMOVE == 'Y'):
                 # Flat corretion
                 OutNormalisedFlat = DivideSmoothGradient(PC,outflatname,Noutflatname)                
            
@@ -969,7 +971,7 @@ def Manual_InspectCalframes_subrout(PC):
     #if PC.USEALLFLATS == 'Y':
     #    filelist += ['AllFilter-Flat.List', 'AllFlat-Bias.List']
     #    outfilelist +=['AllFilter-FinalFlat.List', 'AllFlat-FinalBias.List']
-    if PC.TODO == 'S' :
+    if PC.TODO == 'SX' or PC.TODO == 'SL' :
         filelist.append('AllObjects-Lamp.List')
         outfilelist.append('AllObjects-FinalLamp.List')
     #if PC.SEPARATESKY == 'Y' :
@@ -1122,7 +1124,7 @@ def Manual_InspectObj_subrout(PC):
 #                newY = float(imx[2].split()[1])
                 #Print blank enter in the output file if the star has shifted
                 StarShifted = np.sqrt((newX-oldX)**2 +(newY-oldY)**2) > 1*FWHM
-            elif PC.TODO == 'S' : #If doing spectroscopy
+            elif PC.TODO == 'SX' or PC.TODO == 'SL': #If doing spectroscopy
                 oldsX = newsX
                 oldfilter = newfilter
                 newfilter = shlex.split(objline)[1]
@@ -1234,7 +1236,7 @@ def SelectionofFrames_subrout(PC):
                     Date = shlex.split(Objline)[12]
                     #Time = shlex.split(Objline)[13]
                     FiltList.add(FiltOrGrism)
-                    if PC.TODO=='S' and re.search('sky', Objline) :
+                    if (PC.TODO=='SX' or PC.TODO=='SL') and re.search('sky', Objline) :
                         ObjFILEsky.write('{0}  {1}  {2}  {3} {4}\n'.format(Name,FiltOrGrism,Slit, Exptime,Date))        
                     else:
                         ObjFILE.write('{0}  {1}  {2}  {3} {4} \n'.format(Name,FiltOrGrism,Slit, Exptime,Date))
@@ -2029,7 +2031,8 @@ def main(raw_args=None):
         
         
     if PC.TODO == 'P' : todoinwords = 'Photometry' # For future
-    elif PC.TODO == 'S' : todoinwords = 'Spectroscopy'
+    elif PC.TODO == 'SX' : todoinwords = 'XDSpectroscopy'
+    elif PC.TODO == 'SL' : todoinwords = 'LRSpectroscopy'
 
 
     print(" ---------------- Welcome to \033[91m {0} {1} \033[0m Pipeline --------------- \n".format(PC.INSTRUMENT,todoinwords))

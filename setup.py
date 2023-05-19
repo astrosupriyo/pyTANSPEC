@@ -21,7 +21,7 @@ setup(name='pyTANSPEC',
       license='GPLv3+',
       packages=['pyTANSPEC','pyTANSPEC.libs'],
       entry_points = {
-          'console_scripts': ['pytanreduce=pyTANSPEC.reduce_specTANSPEC:main'],
+          'console_scripts': ['pyspec=pyTANSPEC.reduce_specTANSPEC:main'],
       },
       install_requires=[
           'numpy',
