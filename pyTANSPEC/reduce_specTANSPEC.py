@@ -491,7 +491,7 @@ def DivideSmoothGradient(PC,inputimg,outputimg):
         #Normalise this continuum flat using its median smoothed version
         NormContdata = inputimgdata / smoothGrad
         #generating the combined conti flat
-        if PC.INSTRUMENT == 'TANSPEC':
+        if PC.INSTRUMENT == 'TANSPEC' and PC.GRATINGHDR = 'GRATING1':
             hdulist[0].data = MakeMasterFlat(PC, NormContdata, slit) 
         else:
             hdulist[0].data = NormContdata      
