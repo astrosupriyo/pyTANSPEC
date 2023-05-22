@@ -506,8 +506,8 @@ def xdSpectralExtraction_subrout(PC):
             Ar_spec = fits.getdata(OutputArLampSpec, ext=0)
             arc_lamp = Ar_spec[7:9].flatten()
             arc_filtered = ndimage.gaussian_filter(signal.medfilt(arc_lamp,3), sigma=10, radius=20)
-            shift = recalibrate.calculate_pixshift_with_phase_cross_correlation(template_file, arc_filtered)
-            print('This night have a pixel offset of', shift)
+            PixShiftGuess = recalibrate.calculate_pixshift_with_phase_cross_correlation(template_file, arc_filtered)
+            print('This night have a pixel offset of', PixShiftGuess)
                
             #Combine Ar (7 orders from the redder end) and Ne (3 orders from the bluer end) lamps
             hdularc1 = fits.open(OutputArLampSpec)
@@ -548,8 +548,8 @@ def xdSpectralExtraction_subrout(PC):
             OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
   
             ModelForDispersion =  PC.WLFITFUNC
-            _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--OutputWavlFile", OutputWavlFile,
-                                         "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
+            _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--PixShiftGuess", str(PixShiftGuess), "--OutputWavlFile", OutputWavlFile,
+                              "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
             
             AllOutWlSolFile = OutputWavlFile.format('all')
             OutputObjSpechdul = fits.open(OutputObjSpec)
