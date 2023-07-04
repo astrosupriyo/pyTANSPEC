@@ -233,7 +233,6 @@ def biweight_fits_files(files_list,
                 else:
                     Data_candidate = np.dstack((Data_candidate, data))
                     Variance = Variance + var
-                    print(np.shape(Data_candidate))
                 length += 1
             print('Starting biweight')
             biweight_data = biweight_location(Data_candidate, axis=2)  # Median the data
@@ -790,6 +789,40 @@ def xdSpectralExtraction_subrout(PC):
            
     print('All nights over...')  
     
+def FluxCalibration_subrout(PC):
+    """This will do the flux calibration using instrument response function."""
+    directories = LoadDirectories(PC,CONF=False)
+    pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+    
+    # Importing the response function
+    if PC.TODO == 'P':
+        print('Flux calibration of photometry is yet to define in this pipeline')
+    elif PC.TODO == 'SX':
+        if PC.RESPFN == 'D':
+            response_function_name = os.path.join(pkgpath, 'data', 'INSTRUMENT_RESPONSE','Response_xd_s0.5.npy')
+        else:
+            response_function_name = PC.RESPFN
+        response_function = np.load(response_function_name)
+        # if response_function.shape()[0] == :
+        #     print('This is the instrument response for LR mode. You are working of XD mode spectra')
+    elif PC.TODO == 'SL':
+        print('SL response function will define soon')
+    for night in directories:
+        with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'Final_wlc_file.txt'),'r') as wlc_data_files:
+            wlc_data = list([data for data in wlc_data_files])
+        for data_file in wlc_data:
+#            print(data_file)
+            star_data = fits.getdata(data_file, ext=0)
+            wl_data = fits.getdata(data_file, ext=1)
+            star_header = fits.getheader(data_file)
+            
+            FLC_data = star_data / response_function
+
+            OutputObjSpecFlCalFinal = data_file.rstrip('.fits') + '.flc.fits'
+
+            hdulist = WriteSpecToFitsFile(FLC_data, wl_data, star_header)
+            hdulist.writeto(OutputObjSpecFlCalFinal)
+            print('The flux calibrated spectra is saved as:',OutputObjSpecFlCalFinal)
 
 def SpectralPairSubtraction_subrout(PC):
     """ This will display all the spectra to be extracted to choose the mutual subtraction pairs """
@@ -1213,6 +1246,7 @@ def Manual_InspectCalframes_subrout(PC):
             print('acceptallnights # Accept all images in all remaining nights')
             print('Use the above two options only when you are sure all the images are good. Do not use them if you are not sure.')
             print('-'*5)
+            flag_list = []
             for inpline in inFILE:
                 inplinelist = shlex.split(inpline.rstrip())
                 if len(inplinelist) > 0 : ScienceImg = inplinelist[0]
@@ -1255,6 +1289,7 @@ def Manual_InspectCalframes_subrout(PC):
                 input_path = night
                 output_path = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night)
                 avglampfiles = biweight_fits_files(FinalCalImgs, input_path, output_path, keys=header_keys())
+                flag_list = FinalCalImgs
                 FinalCalImgs.append(avglampfiles[0])
                 if len(avglampfiles)>1:
                     FinalCalImgs.append(avglampfiles[1])
@@ -2165,7 +2200,11 @@ InstrumentDictionaries = {'TANSPEC':{
              'function': SpectralPairSubtraction_subrout },
         6: {'Menu': 'Extract wavelength calibrated 1D spectra from image.',
              'RunMessage': "RUNNING TASK:6  Extracting wavelength calibrated 1D spectra..",
-             'function': SpectralExtraction_subrout }
+             'function': SpectralExtraction_subrout },
+        7: {'Menu': 'Flux calibration of extracted 1D spectra.',
+            'RunMessage': "RUNNING TASK:7 Flux calibration using Instrument Response..",
+            'function': FluxCalibration_subrout }
+
     }
 }
 } # END of Instrument Definitions..#######
