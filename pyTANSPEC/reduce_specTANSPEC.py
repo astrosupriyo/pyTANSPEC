@@ -501,7 +501,7 @@ def xdSpectralExtraction_subrout(PC):
                                                                                                                                  OutputNeLampSpec])
 
             # Finding pixel offset
-            template_filename = os.path.join(pkgpath, 'data', 'arclamp_pixel_offset_template.npy')
+            template_filename = os.path.join(pkgpath, 'data/PIXELOFFSETTEMPLATES', 'pixeloffsettemplate_s0.5.npy')
             template_file = np.load(template_filename)
             Ar_spec = fits.getdata(OutputArLampSpec, ext=0)
             arc_lamp = Ar_spec[7:9].flatten()
@@ -528,8 +528,10 @@ def xdSpectralExtraction_subrout(PC):
                     slit = hdularc1_slit 
                 else:
                     sys.exit("Slit width of lamps does not match: check header of both lamps. ")
-                for i in range(3):
-                    hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar replaced by Ne
+                # for i in range(3):
+                #     hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar 
+                #   replaced by Ne
+                hdularc2data[3] = hdularc1data[3] # Order 3 (from bluer end) of Ne will replaced by Ar. From here, this will be hdularc1. 
             else:
                    sys.exit("Script is for TANSPEC data reduction")     
 
@@ -537,7 +539,7 @@ def xdSpectralExtraction_subrout(PC):
 #                for i in range(3):
 #                    hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar replaced by Ne 
             
-            hdularc1[0].data = hdularc1data
+            hdularc1[0].data = hdularc2data
             OutputCombLampSpec = OutputArLampSpec[:-9]+'combarc.fits'
             hdularc1.writeto(OutputCombLampSpec)
 
