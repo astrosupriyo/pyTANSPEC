@@ -21,9 +21,11 @@ import subprocess
 import time
 import pkgutil
 from astropy.stats import mad_std
+from astropy.stats import biweight_location
 from scipy import signal, ndimage
 
-
+import fnmatch
+import time
 import datetime
 from astropy.time import Time
 from astropy.io import ascii
@@ -66,6 +68,207 @@ def WriteSpecToFitsFile(SpecFlux, Wavel, fitsheader):
     hdulist = fits.HDUList([hdul1, hdul2])
     return hdulist  
 
+
+'''
+Functions to do the biweight the fits files
+'''
+def header_keys():
+    '''
+    Returns
+    -------------------------
+    List of header keys to group the files
+    '''
+    return ['SLIT', 'GRATING', 'OBJECT', 'CALMIR', 'ARGONL', 'NEONL', 'CONT2L']
+
+def extract_header(filename):
+    '''
+    Parameters
+    -----------------------------------------
+    filename: The file which you want to get the header
+    ===================================================
+    Return
+    -----------------------------------------
+    header: Header of input file
+    '''
+    hdul = fits.open(filename)
+    header = hdul[0].header
+    return header
+
+def remove_repeated_values(candidate_list):
+    '''
+    Parameters
+    ----------------------------------------
+    candidate_list: List to remove the repeated elements
+    ====================================================
+    Return
+    ----------------------------------------
+    filtered_list: List which repeated elements removed from candidate_list
+    '''
+    filtered_list = []
+    for cand in candidate_list:
+        if cand in filtered_list:
+            pass
+        else:
+            filtered_list.append(cand)
+    return filtered_list
+
+def file_header_key(keys, filename):
+    keys_dict = {}
+    header = extract_header(filename)
+    for key in keys:
+        keys_dict[key] = header[key]
+    return keys_dict
+
+def ordered_header_keys(keys, file_list):
+    '''
+    Parameters
+    -------------------------------------------
+    keys: Keys in header that you wanted
+    file_list: list of files with path
+    =================================================
+    Return
+    -------------------------------------------
+    filtered_list: List of dictionaries with required values and avoided
+                   repetation of elements
+    '''
+    trimmed_list = []
+    for files in file_list:
+        keys_dict = file_header_key(keys, files)
+        trimmed_list.append(keys_dict)
+    filtered_list = remove_repeated_values(trimmed_list)
+    return filtered_list
+
+def grouping_files(key,
+                   files_list):
+    '''
+    Parameters
+    ------------------------
+    keys: List of header keys which is the basis of grouping.
+    files_list: list of files to group
+    ===============================
+    Returns
+    file_groups_list: Files are grouped in the basis of header keys made
+    sepaeate groups. All groups added to list, file_groups_list.
+    '''
+    print('grouping based on:', key)
+    filtered_list = ordered_header_keys(key, files_list)
+    no_of_groups = len(filtered_list)
+    files_list = files_list
+    files_list.sort()
+    grouped_headers = []
+    file_groups_list = []
+    for n in range(no_of_groups):
+        grouped_headers.append(filtered_list[n])
+        print(grouped_headers[-1])
+        grouped_files = []
+        for files in files_list:
+            file_header = file_header_key(key, files)
+            if file_header == grouped_headers[n]:
+                grouped_files.append(files)
+        file_groups_list.append(grouped_files)
+    return file_groups_list, grouped_headers
+
+def biweight_fits_files(files_list,
+                        input_path,
+                        output_path,
+                        keys=header_keys()):
+    '''
+    Parameters
+    --------------------------------
+    keys: List of header keys which is to be used for grouping of files.
+    input_path: Path of directory of files to average.
+    output_path: The path to the directory which the output files should
+    be saved.
+    ================================
+    Return
+    biweight files will be saved in the given path.
+    -------------------------------
+    '''
+    now = datetime.datetime.now()
+    logfile = os.path.join(output_path, 'Avg_loglist.txt')
+    print("now =", now)
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+    print('Input path:', input_path)
+    print('Output path:', output_path)
+    print('Header keys:', keys)
+    loglist = open(logfile, 'w')
+    loglist.write('Code executed at: {}'.format(dt_string))
+    loglist.close()
+    loglist = open(logfile, 'w')
+    loglist.write('########### Object start Here ############### \n')
+    loglist.close()
+    opfiles = []
+    files_list = [os.path.join(input_path, i) for i in files_list]
+   # files_list = os.listdir(input_path)
+    grouped_files_list, headers = grouping_files(keys, files_list)
+    q = 0
+    loglist = open(logfile, 'a')
+    loglist.write('\n -------------------- Data Sets ----------------\n')
+    loglist.close()
+    for groups in grouped_files_list:
+        print('groups', groups)
+        if groups == []:  # Exclude the case where the list is empty
+            pass
+        else:
+            with open(logfile, 'a') as f:
+                f.write('Chronological order:'+str(q))
+                for key, value in file_header_key(keys, groups[0]).items():
+                    f.write('\n%s\t:\t%s' % (key, value))
+            
+            # Initialize variable to make the array of sum of data
+            Data_candidate = None
+            Variance = None
+            length = 0
+            for files in groups:
+                print('file:',files)
+                loglist = open(logfile, 'a')
+                loglist.write('\n'+files)
+                loglist.close()
+                data = fits.getdata(files, ext=0)
+                var = fits.getdata(files, ext=1)
+                file_header = extract_header(files)
+                if Data_candidate is None:
+                    Data_candidate = data
+                    Variance = var
+                else:
+                    Data_candidate = np.dstack((Data_candidate, data))
+                    Variance = Variance + var
+                    print(np.shape(Data_candidate))
+                length += 1
+            print('Starting biweight')
+            biweight_data = biweight_location(Data_candidate, axis=2)  # Median the data
+            print('Biweight done', np.shape(biweight_data))
+            Variance = Variance / length**2
+            # Filename is generating by blinting the string Avg_ fame from
+            # file header and q, which is just a number to show the
+            # chronological order to avoid overwriting.
+            filename = 'Biweight_' + file_header['FNAME'] + '_' + '.fits'
+            filename_path = os.path.join(output_path,
+                                         filename)
+            file_header['FNAME'] = filename
+            hdu = fits.PrimaryHDU(biweight_data, file_header)
+            var = fits.ImageHDU(Variance)
+            hdul = fits.HDUList([hdu, var])
+            hdul.writeto(filename_path, overwrite=True)
+            print('file saved_as', filename_path, 'time:')
+            loglist = open(logfile, 'a')
+            loglist.write('\n No of sets Averaged: {}\n'.format(length))
+            loglist.close()
+            opfiles.append(filename)
+            loglist = open(logfile, 'a')
+            loglist.write('\n saved to:' + filename_path + '\n')
+            loglist.close()
+        q += 1
+    loglist = open(logfile, 'a')
+    loglist.write('\n *********** All process over ******************\n ')
+    loglist.close()
+    print(opfiles)
+    return opfiles
+
+
+'''
+Averaging done
+'''
 
 def SpecMake(InputFiles, method = None, ScaleF = None):
     """ First scaled the spectra based on background windows and spectra extraction window
@@ -489,13 +692,13 @@ def xdSpectralExtraction_subrout(PC):
                 config.write(configfile)
                 
              # Spectrum extraction for Ar lamp             
-            LampFile = os.path.join(PC.RAWDATADIR,night,Img2Lamp[img])
+            LampFile = os.path.join(PC.OUTDIR,night,Img2Lamp[img])
             OutputArLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc1.fits')            
             OutputArLampSpec, Avg_XD_shift, PixDomain = specextractor.main([LampFile, new_config_file_lamp,           
                                                                                                                                 OutputArLampSpec])
              
             # Spectrum extraction for Ne lamp             
-            NeLampFile = os.path.join(PC.RAWDATADIR,night,Img2NeLamp[img])
+            NeLampFile = os.path.join(PC.OUTDIR,night,Img2NeLamp[img])
             OutputNeLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc2.fits')
             OutputNeLampSpec, Avg_XD_shift, PixDomain = specextractor.main([NeLampFile, new_config_file_lamp, 
                                                                                                                                  OutputNeLampSpec])
@@ -602,9 +805,9 @@ def SpectralPairSubtraction_subrout(PC):
             #Secondly we load a dictionary of raw images to their Calibration Lamp  file
             #with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-BSFinalLamp.List'),'r') as LampFILE :
             with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-FinalLamp.List'),'r') as ArLampFILE:
-                ArLampfiledic = dict([(Lampset.split()[0],shlex.split(Lampset.rstrip())[1]) for Lampset in ArLampFILE])  #Dictionary of Ar Lamp file for each image.
-            with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-Lamp.List'),'r') as NeLampFILE :                
-                NeLampfiledic = dict([(Lampset.split()[0],shlex.split(Lampset.rstrip())[2]) for Lampset in NeLampFILE]) #Dictionary of Ne Lamp file for each image.
+                ArLampfiledic = dict([(Lampset.split()[0],shlex.split(Lampset.rstrip())[-2]) for Lampset in ArLampFILE])  #Dictionary of Ar Lamp file for each image.
+            with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-FinalLamp.List'),'r') as NeLampFILE :                
+                NeLampfiledic = dict([(Lampset.split()[0],shlex.split(Lampset.rstrip())[-1]) for Lampset in NeLampFILE]) #Dictionary of Ne Lamp file for each image.
             #Secondly, we load a dictionary of Dither Frame to first Raw images
             ProcessedImagesfilename = 'AllObjects-ProcessedCombinedImg.List' if PC.IMGCOMBINE == 'Y' else 'AllObjects-ProcessedImg.List'
             with open(PC.GetFullPath(ProcessedImagesfilename),'r') as DitherFILE :
@@ -1048,6 +1251,13 @@ def Manual_InspectCalframes_subrout(PC):
                                 break
                 if not FinalCalImgs : print('\033[91m ALERT: \033[0m No Calibration Images for {0} {1}'.format(night,ScienceImg))
                 #Writing the final surviving calibration files to output file
+                # Averaging have to be done here, then add file names as last 2 elements.
+                input_path = night
+                output_path = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night)
+                avglampfiles = biweight_fits_files(FinalCalImgs, input_path, output_path, keys=header_keys())
+                FinalCalImgs.append(avglampfiles[0])
+                if len(avglampfiles)>1:
+                    FinalCalImgs.append(avglampfiles[1])
                 ouFILE.write('{0} {1}\n'.format(ScienceImg,' '.join(FinalCalImgs)))
             ouFILE.close()
             inFILE.close()
