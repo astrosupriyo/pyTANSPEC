@@ -338,15 +338,12 @@ def SpecMake(InputFiles, method = None, ScaleF = None):
 #Spectral Extraction and Wavelneght Calibration
 def SpectralExtraction_subrout(PC):
     if PC.TODO == 'SX':
-        return xdSpectralExtraction_subrout(PC)
-    elif PC.TODO == 'SL':
-        return LrSpectralExtraction_subrout(PC)
+        mode = 'LR'
+    else:
+        mode = 'XD'
+        """ Extracts spectra from 2d image and also applies wavelength calibration """
+    print('You are doing extraction of {} mode spectra'.format(mode))
 
-
-def LrSpectralExtraction_subrout(PC):
-    """ Extracts spectra from 2d image and also applies wavelength calibration """
-    print('You are doing extraction of LR mode spectra')
-    
     directories = LoadDirectories(PC,CONF=False)
     for night in directories:
         PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
@@ -392,171 +389,14 @@ def LrSpectralExtraction_subrout(PC):
             #ReFitApertureInXD = 'p1'
             APERTUREWINDOW = PC.APERTUREWINDOW
             BKGWINDOWS = PC.BKGWINDOWS            
-                        
-            #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
-            pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-            ContinuumFile = os.path.join(pkgpath,'data/bg_removed_star.fits')
-            ApertureLabel = os.path.join(pkgpath,'data/ApLabel_bg_removed_star.npy')
-            ApertureTraceFilename = os.path.join(pkgpath,'data/TANSPEC_lr_trace.pkl')
-            ConfigFileSpecExt = os.path.join(pkgpath,'config/spectrum_extractor_TANSPEC_lr.config') #Default config file
-            
-            #Finding if any 'spectrum_extractor_TANSPEC.config' file exist in working directory
-            ConfigFileSpecExt_exists = os.path.exists(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))
-
-            if ConfigFileSpecExt_exists:
-                ConfigFileSpecExt = PC.SPECCONFIGFILE #customized config file if the users want
-                print('\n \033[1m' + 'Uses customized config file at {} users for spectrum extraction'.format(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))  + '\033[0m')
-            else:
-                ConfigFileSpecExt = ConfigFileSpecExt
-                print('\n \033[1m' + 'Uses default config file (https://github.com/astrosupriyo/pyTANSPEC/blob/main/pyTANSPEC/config/spectrum_extractor_TANSPEC_lr.config) for spectrum extraction' + '\033[0m')
-            
-            #creating a new configuration file 
-            config = configparser.ConfigParser()
-            config.optionxform = str  # preserve the Case sensitivity of keys
-            config.read(ConfigFileSpecExt)
-            
-            #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
-            if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
-                config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
-            if len(config.get("tracing_settings", "ApertureLabel").strip()) < 1:
-                config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
-            if len(config.get("tracing_settings", "ApertureTraceFilename").strip()) < 1:
-                config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
-            if len(config.get("extraction_settings","ApertureWindow").strip()) < 1:
-                config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
-            if len(config.get("extraction_settings","BkgWindows").strip()) < 1:
-                config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
-            
-            #write new config file into the output directory.
-            new_config_file_star = SpectrumFile.rstrip('.fits')+'.config'
-            with open(new_config_file_star, 'w') as configfile:
-                config.write(configfile)            
-            print(new_config_file_star) #Varghese added this
-            OutputObjSpec, Avg_XD_shift, PixDomain = specextractor.main([SpectrumFile, new_config_file_star, OutputObjSpec])
-            # Plotting the extracted data. Done by Varghese
-            ########################
-            # data = fits.getdata(OutputObjSpec, ext=0)
-            # sky = fits.getdata(OutputObjSpec, ext=1)
-            # _ = plt.plot(data.T, label='star')
-            # _ = plt.plot(sky.T, label='sky1')
-            # _ = plt.plot((data-sky).T, label='sky2')
-            # plt.legend()
-            # plt.title('Extracted spectra of star and sky')
-            # plt.show()
-            ######################
-            
-            #plot the spectra for the first look
-            hdulist = fits.open(OutputObjSpec)
-            #Scale factor to scale the spectra
             ScaleFac = (APERTUREWINDOW[1] - APERTUREWINDOW[0]) / (BKGWINDOWS[1][1] - BKGWINDOWS[1][0])
-            SigWithBkg = hdulist[0].data
-            bkg = np.mean([hdulist[1].data, hdulist[2].data], axis=0)
-            SigWithoutBkg = SigWithBkg - (bkg*ScaleFac)
-            
-            plt.plot(SigWithoutBkg.flatten(), alpha=0.5)
-            plt.title("Extracted Spectra from all {} orders".format((SigWithBkg.shape)[0]))
-            plt.xlabel("Flattened pixels")
-            plt.ylabel("Counts")
-            plt.show()
 
-            # Writing a configuration file for the Lamp
-            ReFitApertureInXD = [tuple(Avg_XD_shift), tuple(PixDomain)]
-            config.set("tracing_settings","ReFitApertureInXD",str(ReFitApertureInXD))
-                       
-            #write new config file into the output directory.
-            new_config_file_lamp = SpectrumFile.rstrip('.fits')+'.Lamp.config'
-            with open(new_config_file_lamp, 'w') as configfile:
-                config.write(configfile)
-                
-             # Spectrum extraction for Ar lamp             
-            LampFile = os.path.join(PC.RAWDATADIR,night,Img2Lamp[img])
-            OutputArLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc1.fits')            
-            OutputArLampSpec, Avg_XD_shift, PixDomain = specextractor.main([LampFile, new_config_file_lamp,           
-                                                                                                                                OutputArLampSpec])
-             
-            # Spectrum extraction for Ne lamp             
-            NeLampFile = os.path.join(PC.RAWDATADIR,night,Img2NeLamp[img])
-            OutputNeLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc2.fits')
-            OutputNeLampSpec, Avg_XD_shift, PixDomain = specextractor.main([NeLampFile, new_config_file_lamp, 
-                                                                                                                                 OutputNeLampSpec])
-            # Plotting the extracted data for lamp. Done by Varghese
-            ########################
-            data = fits.getdata(OutputArLampSpec, ext=0)
-#            sky = fits.getdata(OutputArLampSpec, ext=1)
-            _ = plt.plot(data.T)
-            # _ = plt.plot(sky.T)
-            # _ = plt.plot((data-sky).T)
-            plt.title('Data extracted for Argon lamp')
-            plt.show()
-            ######################
-               
-            #Combine Ar (7 orders from the redder end) and Ne (3 orders from the bluer end) lamps
-            hdularc1 = fits.open(OutputArLampSpec)
-            hdularc2 = fits.open(OutputNeLampSpec)
-            
-            #hdularc1data = hdularc1[0].data
-            #hdularc2data = hdularc2[0].data
-            hdularc1data = fits.getdata(OutputArLampSpec, ext=0)
-            hdularc1header = fits.getheader(OutputArLampSpec, ext=0)
-            hdularc2data = fits.getdata(OutputNeLampSpec, ext=0)
-            hdularc2header = fits.getheader(OutputNeLampSpec, ext=0)
-            #lamphdr = hdularc2[0].header
-            hdularc1_slit = hdularc1header['Slit']
-            hdularc2_slit = hdularc2header['Slit']
-
-            if PC.INSTRUMENT == 'TANSPEC':
-                if hdularc1_slit == hdularc2_slit: # matching slits for Ar and Ne lamps
-                    slit = hdularc1_slit 
-                else:
-                    sys.exit("Slit width of lamps does not match: check header of both lamps. ")
-                # for i in range(3):
-                #     hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar replaced by Ne
-            else:
-                   sys.exit("Script is for TANSPEC data reduction")     
-
-#            if PC.INSTRUMENT == 'TANSPEC':
-#                for i in range(3):
-#                    hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar replaced by Ne 
-            
-            hdularc1[0].data = hdularc1data
-            OutputCombLampSpec = OutputArLampSpec[:-9]+'combarc.fits'
-            hdularc1.writeto(OutputCombLampSpec)
-
-            #WL calibration by template matching
-            pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-            RefArFile = os.path.join(pkgpath,'data','LAMPIDENTDIR_LR',slit,'argon_lamp_template.npy' )
-            RefNeFile = os.path.join(pkgpath,'data','LAMPIDENTDIR_LR',slit,'neon_lamp_template.npy' )
-            # RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
-            # OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
-            OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
-  
-            # ModelForDispersion =  PC.WLFITFUNC # Call recalibrate.main
-            # _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--OutputWavlFile", OutputWavlFile,
-            #                              "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
-            
-            # Template Matching
-            # print('Template Matching')
-            # print(fits.getdata(OutputArLampSpec))
-            print(RefArFile)
-            ar_wl_soln, Ar_shift = recalib.ReCalibrateDispersionSolution(fits.getdata(OutputArLampSpec)[0], np.load(RefArFile))
-            ne_wl_soln, Ne_shift = recalib.ReCalibrateDispersionSolution(fits.getdata(OutputNeLampSpec)[0], np.load(RefNeFile))
-
-
-            
-            AllOutWlSolFile = OutputWavlFile.format('all')
-            OutputObjSpechdul = fits.open(OutputObjSpec)
-            AllOutWlSol = (ar_wl_soln + ne_wl_soln) / 2 #Taking the mean of both.
-            #to make wavelength data as ImageHdu
-            AllOutWlSolImgHDU = fits.ImageHDU(AllOutWlSol, name = 'Wavelength')
-            OutputObjSpechdul.append(AllOutWlSolImgHDU)
-            
-            #wl calibrated spectra
-            OutputObjSpecWlCali =  OutputObjSpec.rstrip('fits') + 'wlc.fits'
-            print('wl calib file', OutputObjSpecWlCali)
-            OutputObjSpechdul.writeto(OutputObjSpecWlCali)            
-            OutputObjSpecWlCaliList.append(OutputObjSpecWlCali)                        
-       
-        ## to combine images or not
+            if PC.TODO == 'SX':
+                OutputObjSpecWlCaliList = xdSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputObjSpec,APERTUREWINDOW,BKGWINDOWS,night,
+                                                                       Img2Lamp, Img2NeLamp, Img2Filt, Filt2finalspecs, img)
+            elif PC.TODO == 'SL':
+                OutputObjSpecWlCaliList = LrSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputObjSpec,APERTUREWINDOW,BKGWINDOWS,night,
+                                                                       Img2Lamp, Img2NeLamp, Img2Filt, Filt2finalspecs, img)
         N = len(OutputObjSpecWlCaliList)
 
         if PC.SCOMBINE == 'YES' and N> 1:
@@ -578,241 +418,447 @@ def LrSpectralExtraction_subrout(PC):
 
     print('All nights over...')
 
-def xdSpectralExtraction_subrout(PC):
-    """ Extracts spectra from 2d image and also applies wavelength calibration """
-    print('You are doing extraction of XD mode spectra')
+
+
+def LrSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputObjSpec,APERTUREWINDOW,BKGWINDOWS,night,Img2Lamp, Img2NeLamp, Img2Filt, Filt2finalspecs, img):
+    # """ Extracts spectra from 2d image and also applies wavelength calibration """
+    # print('You are doing extraction of LR mode spectra')
     
-    directories = LoadDirectories(PC,CONF=False)
-    for night in directories:
-        PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
-        print('Working on night: '+night)
-        try:
-            #First we load the Spectrastoextract_Lamp_BandFilter.txt
-            SpecslistFILE=open(PC.GetFullPath('Spectrastoextract_Lamp_BandFilter.txt'),'r')
-        except IOError:
-            print('Could not find Spectrastoextract_Lamp_BandFilter.txt in this directory. Hence skipping %s directory'%(night))
-            continue
-        #Image to Lamp file dictionary
-        Img2Lamp = []  #They are first born as lists...
-        Img2NeLamp = []
-        Img2Filt = []
-        AllImglist = []
-        for line in SpecslistFILE:
-            line = shlex.split(line.rstrip())
-            Img2Lamp.append((line[0],line[1]))
-            Img2NeLamp.append((line[0],line[2]))
-            Img2Filt.append((line[0],line[3]))
-            AllImglist.append(line[0])
-        SpecslistFILE.close()
-        Img2Lamp = dict(Img2Lamp)
-        Img2NeLamp = dict(Img2NeLamp)
-        Img2Filt = dict(Img2Filt)
-        #Initialising an empty dictionary for storing spectra of each filter
-        Filt2finalspecs = dict()
-        for filt in set(Img2Filt.values()) : Filt2finalspecs[filt] = []
+    # directories = LoadDirectories(PC,CONF=False)
+    # for night in directories:
+    #     PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
+    #     print('Working on night: '+night)
+    #     try:
+    #         #First we load the Spectrastoextract_Lamp_BandFilter.txt
+    #         SpecslistFILE=open(PC.GetFullPath('Spectrastoextract_Lamp_BandFilter.txt'),'r')
+    #     except IOError:
+    #         print('Could not find Spectrastoextract_Lamp_BandFilter.txt in this directory. Hence skipping %s directory'%(night))
+    #         continue
+    #     #Image to Lamp file dictionary
+    #     Img2Lamp = []  #They are first born as lists...
+    #     Img2NeLamp = []
+    #     Img2Filt = []
+    #     AllImglist = []
+    #     for line in SpecslistFILE:
+    #         line = shlex.split(line.rstrip())
+    #         Img2Lamp.append((line[0],line[1]))
+    #         Img2NeLamp.append((line[0],line[2]))
+    #         Img2Filt.append((line[0],line[3]))
+    #         AllImglist.append(line[0])
+    #     SpecslistFILE.close()
+    #     Img2Lamp = dict(Img2Lamp)
+    #     Img2NeLamp = dict(Img2NeLamp)
+    #     Img2Filt = dict(Img2Filt)
+    #     #Initialising an empty dictionary for storing spectra of each filter
+    #     Filt2finalspecs = dict()
+    #     for filt in set(Img2Filt.values()) : Filt2finalspecs[filt] = []
 
-        OutputObjSpecWlCaliList = [] # Initialising an empty array for storing wl calibrated spectra
-        for img in AllImglist:
-            print("Working on image "+night+" "+img)
-            leftover = glob.glob(os.path.splitext(img)[0]+'_*.fits')  #Clean up of some previous attempts if any..
-            leftover += glob.glob(os.path.splitext(img)[0]+'.ms.fits')
-            if len(leftover) > 0 :
-                if not os.path.isdir('Leftover'): os.makedirs('Leftover') 
-                for lft in leftover :
-                    shutil.move(lft,'Leftover/')
+    #     OutputObjSpecWlCaliList = [] # Initialising an empty array for storing wl calibrated spectra
+    #     for img in AllImglist:
+    #         print("Working on image "+night+" "+img)
+    #         leftover = glob.glob(os.path.splitext(img)[0]+'_*.fits')  #Clean up of some previous attempts if any..
+    #         leftover += glob.glob(os.path.splitext(img)[0]+'.ms.fits')
+    #         if len(leftover) > 0 :
+    #             if not os.path.isdir('Leftover'): os.makedirs('Leftover') 
+    #             for lft in leftover :
+    #                 shutil.move(lft,'Leftover/')
 
-            # Spectrum extraction for object
-            SpectrumFile = PC.GetFullPath(img)
-            OutputObjSpec = SpectrumFile.rstrip('.fits')+'.ms.fits'
-            #ReFitApertureInXD = 'p1'
-            APERTUREWINDOW = PC.APERTUREWINDOW
-            BKGWINDOWS = PC.BKGWINDOWS            
+    #         # Spectrum extraction for object
+    #         SpectrumFile = PC.GetFullPath(img)
+    #         OutputObjSpec = SpectrumFile.rstrip('.fits')+'.ms.fits'
+    #         #ReFitApertureInXD = 'p1'
+    #         APERTUREWINDOW = PC.APERTUREWINDOW
+    #         BKGWINDOWS = PC.BKGWINDOWS            
                         
-            #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
-            pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-            ContinuumFile = os.path.join(pkgpath,'data/bd491296axd_s0.5Ahg-00031.Z.fits')
-            ApertureLabel = os.path.join(pkgpath,'data/ApLabel_bd491296axd_s0.5Ahg-00031.Z.npy')
-            ApertureTraceFilename = os.path.join(pkgpath,'data/bd491296axd_s0.5Ahg-00031.Z.fits_trace.pkl')
-            ConfigFileSpecExt = os.path.join(pkgpath,'config/spectrum_extractor_TANSPEC.config') #Default config file
-            
-            #Finding if any 'spectrum_extractor_TANSPEC.config' file exist in working directory
-            ConfigFileSpecExt_exists = os.path.exists(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))
+    #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
+    pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+    ContinuumFile = os.path.join(pkgpath,'data/bg_removed_star.fits')
+    ApertureLabel = os.path.join(pkgpath,'data/ApLabel_bg_removed_star.npy')
+    ApertureTraceFilename = os.path.join(pkgpath,'data/TANSPEC_lr_trace.pkl')
+    ConfigFileSpecExt = os.path.join(pkgpath,'config/spectrum_extractor_TANSPEC_lr.config') #Default config file
 
-            if ConfigFileSpecExt_exists:
-                ConfigFileSpecExt = PC.SPECCONFIGFILE #customized config file if the users want
-                print('\n \033[1m' + 'Uses customized config file at {} users for spectrum extraction'.format(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))  + '\033[0m')
-            else:
-                ConfigFileSpecExt = ConfigFileSpecExt
-                print('\n \033[1m' + 'Uses default config file (https://github.com/astrosupriyo/pyTANSPEC/blob/main/pyTANSPEC/config/spectrum_extractor_TANSPEC.config) for spectrum extraction' + '\033[0m')
-            
-            #creating a new configuration file 
-            config = configparser.ConfigParser()
-            config.optionxform = str  # preserve the Case sensitivity of keys
-            config.read(ConfigFileSpecExt)
-            
-            #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
-            if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
-                config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
-            if len(config.get("tracing_settings", "ApertureLabel").strip()) < 1:
-                config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
-            if len(config.get("tracing_settings", "ApertureTraceFilename").strip()) < 1:
-                config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
-            if len(config.get("extraction_settings","ApertureWindow").strip()) < 1:
-                config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
-            if len(config.get("extraction_settings","BkgWindows").strip()) < 1:
-                config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
-            
-            #write new config file into the output directory.
-            new_config_file_star = SpectrumFile.rstrip('.fits')+'.config'
-            with open(new_config_file_star, 'w') as configfile:
-                config.write(configfile)            
-            
+    #Finding if any 'spectrum_extractor_TANSPEC.config' file exist in working directory
+    ConfigFileSpecExt_exists = os.path.exists(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))
 
-            OutputObjSpec, Avg_XD_shift, PixDomain = specextractor.main([SpectrumFile, new_config_file_star, OutputObjSpec])
-            
-            #plot the spectra for the first look
-            hdulist = fits.open(OutputObjSpec)
-            #Scale factor to scale the spectra
-            ScaleFac = (APERTUREWINDOW[1] - APERTUREWINDOW[0]) / (BKGWINDOWS[1][1] - BKGWINDOWS[1][0])
-            SigWithBkg = hdulist[0].data
-            bkg = np.mean([hdulist[1].data, hdulist[2].data], axis=0)
-            SigWithoutBkg = SigWithBkg - (bkg*ScaleFac)
-            
-            plt.plot(SigWithoutBkg.flatten(), alpha=0.5)
-            plt.title("Extracted Spectra from all {} orders".format((SigWithBkg.shape)[0]))
-            plt.xlabel("Flattened pixels")
-            plt.ylabel("Counts")
-            plt.show()
+    if ConfigFileSpecExt_exists:
+        ConfigFileSpecExt = PC.SPECCONFIGFILE #customized config file if the users want
+        print('\n \033[1m' + 'Uses customized config file at {} users for spectrum extraction'.format(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))  + '\033[0m')
+    else:
+        ConfigFileSpecExt = ConfigFileSpecExt
+        print('\n \033[1m' + 'Uses default config file (https://github.com/astrosupriyo/pyTANSPEC/blob/main/pyTANSPEC/config/spectrum_extractor_TANSPEC_lr.config) for spectrum extraction' + '\033[0m')
 
-            # Writing a configuration file for the Lamp
-            ReFitApertureInXD = [tuple(Avg_XD_shift), tuple(PixDomain)]
-            config.set("tracing_settings","ReFitApertureInXD",str(ReFitApertureInXD))
-                       
-            #write new config file into the output directory.
-            new_config_file_lamp = SpectrumFile.rstrip('.fits')+'.Lamp.config'
-            with open(new_config_file_lamp, 'w') as configfile:
-                config.write(configfile)
-                
-             # Spectrum extraction for Ar lamp             
-            LampFile = os.path.join(PC.OUTDIR,night,Img2Lamp[img])
-            OutputArLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc1.fits')            
-            OutputArLampSpec, Avg_XD_shift, PixDomain = specextractor.main([LampFile, new_config_file_lamp,           
-                                                                                                                                OutputArLampSpec])
-             
-            # Spectrum extraction for Ne lamp             
-            NeLampFile = os.path.join(PC.OUTDIR,night,Img2NeLamp[img])
-            OutputNeLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc2.fits')
-            OutputNeLampSpec, Avg_XD_shift, PixDomain = specextractor.main([NeLampFile, new_config_file_lamp, 
-                                                                                                                                 OutputNeLampSpec])
+    #creating a new configuration file 
+    config = configparser.ConfigParser()
+    config.optionxform = str  # preserve the Case sensitivity of keys
+    config.read(ConfigFileSpecExt)
 
-            # Finding pixel offset
-            template_filename = os.path.join(pkgpath, 'data/PIXELOFFSETTEMPLATES', 'pixeloffsettemplate_s0.5.npy')
-            template_file = np.load(template_filename)
-            Ar_spec = fits.getdata(OutputArLampSpec, ext=0)
-            arc_lamp = Ar_spec[7:9].flatten()
-            arc_filtered = ndimage.gaussian_filter(signal.medfilt(arc_lamp,3), sigma=10, radius=20)
-            PixShiftGuess = recalibrate.calculate_pixshift_with_phase_cross_correlation(template_file, arc_filtered)
-            print('This night have a pixel offset of', PixShiftGuess)
-               
-            #Combine Ar (7 orders from the redder end) and Ne (3 orders from the bluer end) lamps
-            hdularc1 = fits.open(OutputArLampSpec)
-            hdularc2 = fits.open(OutputNeLampSpec)
-            
-            #hdularc1data = hdularc1[0].data
-            #hdularc2data = hdularc2[0].data
-            hdularc1data = fits.getdata(OutputArLampSpec, ext=0)
-            hdularc1header = fits.getheader(OutputArLampSpec, ext=0)
-            hdularc2data = fits.getdata(OutputNeLampSpec, ext=0)
-            hdularc2header = fits.getheader(OutputNeLampSpec, ext=0)
-            #lamphdr = hdularc2[0].header
-            hdularc1_slit = hdularc1header['Slit']
-            hdularc2_slit = hdularc2header['Slit']
+    #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
+    if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
+        config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
+    if len(config.get("tracing_settings", "ApertureLabel").strip()) < 1:
+        config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
+    if len(config.get("tracing_settings", "ApertureTraceFilename").strip()) < 1:
+        config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
+    if len(config.get("extraction_settings","ApertureWindow").strip()) < 1:
+        config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
+    if len(config.get("extraction_settings","BkgWindows").strip()) < 1:
+        config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
 
-            if PC.INSTRUMENT == 'TANSPEC':
-                if hdularc1_slit == hdularc2_slit: # matching slits for Ar and Ne lamps
-                    slit = hdularc1_slit 
-                else:
-                    sys.exit("Slit width of lamps does not match: check header of both lamps. ")
-                hdularc2data = (hdularc1data + hdularc2data)/2 #Simply adding up both the spectra. This will be used for template matching.    
-                # for i in range(3):
-                #     hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar 
-                #   replaced by Ne
-                # hdularc2data[1] = hdularc1data[1]
-                # hdularc2data[3] = hdularc1data[3] # Order 1 and 3 (from bluer end) of Ne will replaced by Ar. From here, this will be hdularc1.
-                # if slit == 'S-4.0':
-                #     hdularc2data[5] = hdularc1data[5] # Replacing order 5 of neon with argon. Neon does not give a good fit in this case.
-            else:
-                   sys.exit("Script is for TANSPEC data reduction")     
+    #write new config file into the output directory.
+    new_config_file_star = SpectrumFile.rstrip('.fits')+'.config'
+    with open(new_config_file_star, 'w') as configfile:
+        config.write(configfile)            
+    print(new_config_file_star) #Varghese added this
+    OutputObjSpec, Avg_XD_shift, PixDomain = specextractor.main([SpectrumFile, new_config_file_star, OutputObjSpec])
 
-#            if PC.INSTRUMENT == 'TANSPEC':
-#                for i in range(3):
-#                    hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar replaced by Ne 
-            
-            hdularc1[0].data = hdularc2data
-            OutputCombLampSpec = OutputArLampSpec[:-9]+'combarc.fits'
-            hdularc1.writeto(OutputCombLampSpec)
+    #plot the spectra for the first look
+    hdulist = fits.open(OutputObjSpec)
+    #Scale factor to scale the spectra
+    ScaleFac = (APERTUREWINDOW[1] - APERTUREWINDOW[0]) / (BKGWINDOWS[1][1] - BKGWINDOWS[1][0])
+    SigWithBkg = hdulist[0].data
+    bkg = np.mean([hdulist[1].data, hdulist[2].data], axis=0)
+    SigWithoutBkg = SigWithBkg - (bkg*ScaleFac)
 
-            # WL calibration by template matching
-            pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-            RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '_template.npy')
-            OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
-            ModelForDispersion = 'p3' # PC.WLFITFUNC
-            OutputWavlFile = None
-            for order in range(0, 10):
-                lamp = hdularc2data[order]
-                template = np.load(RefDispTableFile.format(order))
-                soln, shift = recalibrate.ReCalibrateDispersionSolution(lamp, template.T)
-                if OutputWavlFile is None:
-                    OutputWavlFile = soln
-                else:
-                    OutputWavlFile = np.vstack((OutputWavlFile, soln))
-            #WL calibration
-            # pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-            # RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
-            # OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
-            # OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
-  
-            # ModelForDispersion =  PC.WLFITFUNC
-            # _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--PixShiftGuess", str(PixShiftGuess), "--OutputWavlFile", OutputWavlFile,
-            #                   "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
-            
-            #AllOutWlSolFile = OutputWavlFile.format('all')
-            OutputObjSpechdul = fits.open(OutputObjSpec)
-  #          AllOutWlSol = np.load(AllOutWlSolFile)
-            #to make wavelength data as ImageHdu
-            AllOutWlSol = OutputWavlFile
-            AllOutWlSolImgHDU = fits.ImageHDU(AllOutWlSol, name = 'Wavelength')
-            OutputObjSpechdul.append(AllOutWlSolImgHDU)
-            
-            #wl calibrated spectra
-            OutputObjSpecWlCali =  OutputObjSpec.rstrip('fits') + 'wlc.fits'
-            print(OutputObjSpecWlCali)
-            OutputObjSpechdul.writeto(OutputObjSpecWlCali)            
-            OutputObjSpecWlCaliList.append(OutputObjSpecWlCali)                        
-       
-        ## to combine images or not
-        N = len(OutputObjSpecWlCaliList)
 
-        if PC.SCOMBINE == 'YES' and N> 1:
-            OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final' + '.avg.fits'
-            OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = 'mean',ScaleF=ScaleFac)
-            OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-        elif PC.SCOMBINE == 'NO' and N> 1:
-            for i in range(N):
-                OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[i].rstrip('.fits') + '.final.fits'
-                OutputObjSpecWlCaliFinalhdul = SpecMake([OutputObjSpecWlCaliList[i]], method = None,ScaleF=ScaleFac)
-                OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-        elif N==1:
-            OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final.fits'
-            OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = None, ScaleF=ScaleFac)
-            OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
+    # Writing a configuration file for the Lamp
+    ReFitApertureInXD = [tuple(Avg_XD_shift), tuple(PixDomain)]
+    config.set("tracing_settings","ReFitApertureInXD",str(ReFitApertureInXD))
+
+    #write new config file into the output directory.
+    new_config_file_lamp = SpectrumFile.rstrip('.fits')+'.Lamp.config'
+    with open(new_config_file_lamp, 'w') as configfile:
+        config.write(configfile)
+
+     # Spectrum extraction for Ar lamp             
+    LampFile = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,Img2Lamp[img])
+    OutputArLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc1.fits')            
+    OutputArLampSpec, Avg_XD_shift, PixDomain = specextractor.main([LampFile, new_config_file_lamp,           
+                                                                                                                        OutputArLampSpec])
+
+    # Spectrum extraction for Ne lamp             
+    NeLampFile = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,Img2NeLamp[img])
+    OutputNeLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc2.fits')
+    OutputNeLampSpec, Avg_XD_shift, PixDomain = specextractor.main([NeLampFile, new_config_file_lamp, 
+                                                                                                                         OutputNeLampSpec])
+
+
+    hdularc1 = fits.open(OutputArLampSpec)
+    hdularc2 = fits.open(OutputNeLampSpec)
+
+    #hdularc1data = hdularc1[0].data
+    #hdularc2data = hdularc2[0].data
+    hdularc1data = fits.getdata(OutputArLampSpec, ext=0)
+    hdularc1header = fits.getheader(OutputArLampSpec, ext=0)
+    hdularc2data = fits.getdata(OutputNeLampSpec, ext=0)
+    hdularc2header = fits.getheader(OutputNeLampSpec, ext=0)
+    #lamphdr = hdularc2[0].header
+    hdularc1_slit = hdularc1header['Slit']
+    hdularc2_slit = hdularc2header['Slit']
+
+    if PC.INSTRUMENT == 'TANSPEC':
+        if hdularc1_slit == hdularc2_slit: # matching slits for Ar and Ne lamps
+            slit = hdularc1_slit 
         else:
-             raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
-         
-        with open(os.path.join(PC.RAWDATADIR, PC.OUTDIR, night, 'Final_wlc_file.txt'),'w') as opfile:
-            opfile.write(OutputObjSpecWlCaliFinal)
+            sys.exit("Slit width of lamps does not match: check header of both lamps. ")
+        # for i in range(3):
+        #     hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar replaced by Ne
+    else:
+           sys.exit("Script is for TANSPEC data reduction")     
 
-    print('All nights over...')  
+
+    hdularc1[0].data = hdularc1data
+    OutputCombLampSpec = OutputArLampSpec[:-9]+'combarc.fits'
+    hdularc1.writeto(OutputCombLampSpec)
+
+    #WL calibration by template matching
+    pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+    # RefArFile = os.path.join(pkgpath,'data','LAMPIDENTDIR_LR',slit,'argon_lamp_template.npy' )
+    # RefNeFile = os.path.join(pkgpath,'data','LAMPIDENTDIR_LR',slit,'neon_lamp_template.npy' )
+    RefFile = os.path.join(pkgpath,'data','LAMPIDENTDIR_LR',slit,'tanspecArNeLR_template.npy' )
+    # RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
+    # OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
+    OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
+
+    # ModelForDispersion =  PC.WLFITFUNC # Call recalibrate.main
+    # _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--OutputWavlFile", OutputWavlFile,
+    #                              "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
+    Lamp_array = (fits.getdata(OutputArLampSpec)[0] + fits.getdata(OutputNeLampSpec)[0])
+    # Template Matching
+    # print('Template Matching')
+    # print(fits.getdata(OutputArLampSpec))
+    print(RefFile)
+    wl_soln, shift = recalibrate.ReCalibrateDispersionSolution(Lamp_array, np.load(RefFile).T)
+
+
+    AllOutWlSolFile = OutputWavlFile.format('all')
+    OutputObjSpechdul = fits.open(OutputObjSpec)
+    AllOutWlSol = wl_soln
+    #to make wavelength data as ImageHdu
+    AllOutWlSolImgHDU = fits.ImageHDU(AllOutWlSol, name = 'Wavelength')
+    OutputObjSpechdul.append(AllOutWlSolImgHDU)
+
+    #wl calibrated spectra
+    OutputObjSpecWlCali =  OutputObjSpec.rstrip('fits') + 'wlc.fits'
+    print('wl calib file', OutputObjSpecWlCali)
+    OutputObjSpechdul.writeto(OutputObjSpecWlCali)            
+    OutputObjSpecWlCaliList.append(OutputObjSpecWlCali)                        
+    return OutputObjSpecWlCaliList
+        ## to combine images or not
+    #     N = len(OutputObjSpecWlCaliList)
+
+    #     if PC.SCOMBINE == 'YES' and N> 1:
+    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final' + '.avg.fits'
+    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = 'mean',ScaleF=ScaleFac)
+    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
+    #     elif PC.SCOMBINE == 'NO' and N> 1:
+    #         for i in range(N):
+    #             OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[i].rstrip('.fits') + '.final.fits'
+    #             OutputObjSpecWlCaliFinalhdul = SpecMake([OutputObjSpecWlCaliList[i]], method = None,ScaleF=ScaleFac)
+    #             OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
+    #     elif N == 1:
+    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final.fits'
+    #         print('final file', OutputObjSpecWlCaliFinal)
+    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = None, ScaleF=ScaleFac)
+    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
+    #     else:
+    #         raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
+
+    # print('All nights over...')
+
+def xdSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputObjSpec,APERTUREWINDOW,BKGWINDOWS,night,Img2Lamp, Img2NeLamp, Img2Filt, Filt2finalspecs, img):
+    """ Extracts spectra from 2d image and also applies wavelength calibration """
+    # print('You are doing extraction of XD mode spectra')
+    
+    # directories = LoadDirectories(PC,CONF=False)
+    # for night in directories:
+    #     PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
+    #     print('Working on night: '+night)
+    #     try:
+    #         #First we load the Spectrastoextract_Lamp_BandFilter.txt
+    #         SpecslistFILE=open(PC.GetFullPath('Spectrastoextract_Lamp_BandFilter.txt'),'r')
+    #     except IOError:
+    #         print('Could not find Spectrastoextract_Lamp_BandFilter.txt in this directory. Hence skipping %s directory'%(night))
+    #         continue
+    #     #Image to Lamp file dictionary
+    #     Img2Lamp = []  #They are first born as lists...
+    #     Img2NeLamp = []
+    #     Img2Filt = []
+    #     AllImglist = []
+    #     for line in SpecslistFILE:
+    #         line = shlex.split(line.rstrip())
+    #         Img2Lamp.append((line[0],line[1]))
+    #         Img2NeLamp.append((line[0],line[2]))
+    #         Img2Filt.append((line[0],line[3]))
+    #         AllImglist.append(line[0])
+    #     SpecslistFILE.close()
+    #     Img2Lamp = dict(Img2Lamp)
+    #     Img2NeLamp = dict(Img2NeLamp)
+    #     Img2Filt = dict(Img2Filt)
+    #     #Initialising an empty dictionary for storing spectra of each filter
+    #     Filt2finalspecs = dict()
+    #     for filt in set(Img2Filt.values()) : Filt2finalspecs[filt] = []
+
+    #     OutputObjSpecWlCaliList = [] # Initialising an empty array for storing wl calibrated spectra
+    #     for img in AllImglist:
+    #         print("Working on image "+night+" "+img)
+    #         leftover = glob.glob(os.path.splitext(img)[0]+'_*.fits')  #Clean up of some previous attempts if any..
+    #         leftover += glob.glob(os.path.splitext(img)[0]+'.ms.fits')
+    #         if len(leftover) > 0 :
+    #             if not os.path.isdir('Leftover'): os.makedirs('Leftover') 
+    #             for lft in leftover :
+    #                 shutil.move(lft,'Leftover/')
+
+    #         # Spectrum extraction for object
+    #         SpectrumFile = PC.GetFullPath(img)
+    #         OutputObjSpec = SpectrumFile.rstrip('.fits')+'.ms.fits'
+    #         #ReFitApertureInXD = 'p1'
+    #         APERTUREWINDOW = PC.APERTUREWINDOW
+    #         BKGWINDOWS = PC.BKGWINDOWS            
+
+    #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
+    pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+    ContinuumFile = os.path.join(pkgpath,'data/bd491296axd_s0.5Ahg-00031.Z.fits')
+    ApertureLabel = os.path.join(pkgpath,'data/ApLabel_bd491296axd_s0.5Ahg-00031.Z.npy')
+    ApertureTraceFilename = os.path.join(pkgpath,'data/bd491296axd_s0.5Ahg-00031.Z.fits_trace.pkl')
+    ConfigFileSpecExt = os.path.join(pkgpath,'config/spectrum_extractor_TANSPEC.config') #Default config file
+
+    #Finding if any 'spectrum_extractor_TANSPEC.config' file exist in working directory
+    ConfigFileSpecExt_exists = os.path.exists(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))
+
+    if ConfigFileSpecExt_exists:
+        ConfigFileSpecExt = PC.SPECCONFIGFILE #customized config file if the users want
+        print('\n \033[1m' + 'Uses customized config file at {} users for spectrum extraction'.format(os.path.join(PC.RAWDATADIR,PC.SPECCONFIGFILE))  + '\033[0m')
+    else:
+        ConfigFileSpecExt = ConfigFileSpecExt
+        print('\n \033[1m' + 'Uses default config file (https://github.com/astrosupriyo/pyTANSPEC/blob/main/pyTANSPEC/config/spectrum_extractor_TANSPEC.config) for spectrum extraction' + '\033[0m')
+
+    #creating a new configuration file 
+    config = configparser.ConfigParser()
+    config.optionxform = str  # preserve the Case sensitivity of keys
+    config.read(ConfigFileSpecExt)
+
+    #set these two variables, which are coming from the main TANSPEC confg file, into the spectrum_extractor_TANSPEC.config
+    if len(config.get("tracing_settings","ContinuumFile").strip()) < 1:
+        config.set("tracing_settings","ContinuumFile",str(ContinuumFile))
+    if len(config.get("tracing_settings", "ApertureLabel").strip()) < 1:
+        config.set("tracing_settings","ApertureLabel",str(ApertureLabel))
+    if len(config.get("tracing_settings", "ApertureTraceFilename").strip()) < 1:
+        config.set("tracing_settings","ApertureTraceFilename",str(ApertureTraceFilename))
+    if len(config.get("extraction_settings","ApertureWindow").strip()) < 1:
+        config.set("extraction_settings","ApertureWindow",str(APERTUREWINDOW))
+    if len(config.get("extraction_settings","BkgWindows").strip()) < 1:
+        config.set("extraction_settings","BkgWindows",str(BKGWINDOWS))
+
+    #write new config file into the output directory.
+    new_config_file_star = SpectrumFile.rstrip('.fits')+'.config'
+    with open(new_config_file_star, 'w') as configfile:
+        config.write(configfile)            
+
+
+    OutputObjSpec, Avg_XD_shift, PixDomain = specextractor.main([SpectrumFile, new_config_file_star, OutputObjSpec])
+
+    #plot the spectra for the first look
+    hdulist = fits.open(OutputObjSpec)
+    #Scale factor to scale the spectra
+    ScaleFac = (APERTUREWINDOW[1] - APERTUREWINDOW[0]) / (BKGWINDOWS[1][1] - BKGWINDOWS[1][0])
+    SigWithBkg = hdulist[0].data
+    bkg = np.mean([hdulist[1].data, hdulist[2].data], axis=0)
+    SigWithoutBkg = SigWithBkg - (bkg*ScaleFac)
+
+    plt.plot(SigWithoutBkg.flatten(), alpha=0.5)
+    plt.title("Extracted Spectra from all {} orders".format((SigWithBkg.shape)[0]))
+    plt.xlabel("Flattened pixels")
+    plt.ylabel("Counts")
+    plt.show()
+
+    # Writing a configuration file for the Lamp
+    ReFitApertureInXD = [tuple(Avg_XD_shift), tuple(PixDomain)]
+    config.set("tracing_settings","ReFitApertureInXD",str(ReFitApertureInXD))
+
+    #write new config file into the output directory.
+    new_config_file_lamp = SpectrumFile.rstrip('.fits')+'.Lamp.config'
+    with open(new_config_file_lamp, 'w') as configfile:
+        config.write(configfile)
+
+     # Spectrum extraction for Ar lamp             
+    LampFile = os.path.join(PC.OUTDIR,night,Img2Lamp[img])
+    OutputArLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc1.fits')            
+    OutputArLampSpec, Avg_XD_shift, PixDomain = specextractor.main([LampFile, new_config_file_lamp,           
+                                                                                                                        OutputArLampSpec])
+
+    # Spectrum extraction for Ne lamp             
+    NeLampFile = os.path.join(PC.OUTDIR,night,Img2NeLamp[img])
+    OutputNeLampSpec = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,img[:-5]+'_arc2.fits')
+    OutputNeLampSpec, Avg_XD_shift, PixDomain = specextractor.main([NeLampFile, new_config_file_lamp, 
+                                                                                                                         OutputNeLampSpec])
+
+    # Finding pixel offset
+    template_filename = os.path.join(pkgpath, 'data/PIXELOFFSETTEMPLATES', 'pixeloffsettemplate_s0.5.npy')
+    template_file = np.load(template_filename)
+    Ar_spec = fits.getdata(OutputArLampSpec, ext=0)
+    arc_lamp = Ar_spec[7:9].flatten()
+    arc_filtered = ndimage.gaussian_filter(signal.medfilt(arc_lamp,3), sigma=10, radius=20)
+    PixShiftGuess = recalibrate.calculate_pixshift_with_phase_cross_correlation(template_file, arc_filtered)
+    print('This night have a pixel offset of', PixShiftGuess)
+
+    #Combine Ar (7 orders from the redder end) and Ne (3 orders from the bluer end) lamps
+    hdularc1 = fits.open(OutputArLampSpec)
+    hdularc2 = fits.open(OutputNeLampSpec)
+
+    #hdularc1data = hdularc1[0].data
+    #hdularc2data = hdularc2[0].data
+    hdularc1data = fits.getdata(OutputArLampSpec, ext=0)
+    hdularc1header = fits.getheader(OutputArLampSpec, ext=0)
+    hdularc2data = fits.getdata(OutputNeLampSpec, ext=0)
+    hdularc2header = fits.getheader(OutputNeLampSpec, ext=0)
+    #lamphdr = hdularc2[0].header
+    hdularc1_slit = hdularc1header['Slit']
+    hdularc2_slit = hdularc2header['Slit']
+
+    if PC.INSTRUMENT == 'TANSPEC':
+        if hdularc1_slit == hdularc2_slit: # matching slits for Ar and Ne lamps
+            slit = hdularc1_slit 
+        else:
+            sys.exit("Slit width of lamps does not match: check header of both lamps. ")
+        hdularc2data = (hdularc1data + hdularc2data)/2 #Simply adding up both the spectra. This will be used for template matching.    
+        # for i in range(3):
+        #     hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar 
+        #   replaced by Ne
+        # hdularc2data[1] = hdularc1data[1]
+        # hdularc2data[3] = hdularc1data[3] # Order 1 and 3 (from bluer end) of Ne will replaced by Ar. From here, this will be hdularc1.
+        # if slit == 'S-4.0':
+        #     hdularc2data[5] = hdularc1data[5] # Replacing order 5 of neon with argon. Neon does not give a good fit in this case.
+    else:
+           sys.exit("Script is for TANSPEC data reduction")     
+
+    #            if PC.INSTRUMENT == 'TANSPEC':
+    #                for i in range(3):
+    #                    hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar replaced by Ne 
+
+    hdularc1[0].data = hdularc2data
+    OutputCombLampSpec = OutputArLampSpec[:-9]+'combarc.fits'
+    hdularc1.writeto(OutputCombLampSpec)
+
+    # WL calibration by template matching
+    pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+    RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '_template.npy')
+    OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
+    ModelForDispersion = 'p3' # PC.WLFITFUNC
+    OutputWavlFile = None
+    for order in range(0, 10):
+        lamp = hdularc2data[order]
+        template = np.load(RefDispTableFile.format(order))
+        soln, shift = recalibrate.ReCalibrateDispersionSolution(lamp, template.T)
+        if OutputWavlFile is None:
+            OutputWavlFile = soln
+        else:
+            OutputWavlFile = np.vstack((OutputWavlFile, soln))
+    #WL calibration
+    # pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+    # RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
+    # OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
+    # OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
+
+    # ModelForDispersion =  PC.WLFITFUNC
+    # _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--PixShiftGuess", str(PixShiftGuess), "--OutputWavlFile", OutputWavlFile,
+    #                   "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
+
+    #           AllOutWlSolFile = OutputWavlFile.format('all')
+    #          OutputObjSpechdul = fits.open(OutputObjSpec)
+    #          AllOutWlSol = np.load(AllOutWlSolFile)
+    #to make wavelength data as ImageHdu
+    AllOutWlSol = OutputWavlFile
+    OutputObjSpechdul = fits.open(OutputObjSpec)
+    AllOutWlSolImgHDU = fits.ImageHDU(AllOutWlSol, name = 'Wavelength')
+    OutputObjSpechdul.append(AllOutWlSolImgHDU)
+
+    #wl calibrated spectra
+    OutputObjSpecWlCali =  OutputObjSpec.rstrip('fits') + 'wlc.fits'
+    print(OutputObjSpecWlCali)
+    OutputObjSpechdul.writeto(OutputObjSpecWlCali)            
+    OutputObjSpecWlCaliList.append(OutputObjSpecWlCali)                        
+    return OutputObjSpecWlCaliList   
+    #     ## to combine images or not
+    #     N = len(OutputObjSpecWlCaliList)
+
+    #     if PC.SCOMBINE == 'YES' and N> 1:
+    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final' + '.avg.fits'
+    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = 'mean',ScaleF=ScaleFac)
+    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
+    #     elif PC.SCOMBINE == 'NO' and N> 1:
+    #         for i in range(N):
+    #             OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[i].rstrip('.fits') + '.final.fits'
+    #             OutputObjSpecWlCaliFinalhdul = SpecMake([OutputObjSpecWlCaliList[i]], method = None,ScaleF=ScaleFac)
+    #             OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
+    #     elif N==1:
+    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final.fits'
+    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = None, ScaleF=ScaleFac)
+    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
+    #     else:
+    #          raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
+           
+    # print('All nights over...')  
+
     
 def FluxCalibration_subrout(PC):
     """This will do the flux calibration using instrument response function."""
