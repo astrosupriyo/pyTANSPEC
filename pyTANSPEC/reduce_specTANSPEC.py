@@ -235,7 +235,10 @@ def biweight_fits_files(files_list,
                     Variance = Variance + var
                 length += 1
             print('Starting biweight')
-            biweight_data = biweight_location(Data_candidate, axis=2)  # Median the data
+            if len(groups) > 1:
+                biweight_data = biweight_location(Data_candidate, axis=2)  # Median the data
+            else:
+                biweight_data = Data_candidate
             print('Biweight done', np.shape(biweight_data))
             Variance = Variance / length**2
             # Filename is generating by blinting the string Avg_ fame from
@@ -730,10 +733,14 @@ def xdSpectralExtraction_subrout(PC):
                     slit = hdularc1_slit 
                 else:
                     sys.exit("Slit width of lamps does not match: check header of both lamps. ")
+                hdularc2data = (hdularc1data + hdularc2data)/2 #Simply adding up both the spectra. This will be used for template matching.    
                 # for i in range(3):
                 #     hdularc1data[i] = hdularc2data[i] # 1st 3-orders (from bluer end) of Ar 
                 #   replaced by Ne
-                hdularc2data[3] = hdularc1data[3] # Order 3 (from bluer end) of Ne will replaced by Ar. From here, this will be hdularc1. 
+                # hdularc2data[1] = hdularc1data[1]
+                # hdularc2data[3] = hdularc1data[3] # Order 1 and 3 (from bluer end) of Ne will replaced by Ar. From here, this will be hdularc1.
+                # if slit == 'S-4.0':
+                #     hdularc2data[5] = hdularc1data[5] # Replacing order 5 of neon with argon. Neon does not give a good fit in this case.
             else:
                    sys.exit("Script is for TANSPEC data reduction")     
 
@@ -745,20 +752,35 @@ def xdSpectralExtraction_subrout(PC):
             OutputCombLampSpec = OutputArLampSpec[:-9]+'combarc.fits'
             hdularc1.writeto(OutputCombLampSpec)
 
-            #WL calibration
+            # WL calibration by template matching
             pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-            RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
-            OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
+            RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '_template.npy')
             OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
+            ModelForDispersion = 'p3' # PC.WLFITFUNC
+            OutputWavlFile = None
+            for order in range(0, 10):
+                lamp = hdularc2data[order]
+                template = np.load(RefDispTableFile.format(order))
+                soln, shift = recalibrate.ReCalibrateDispersionSolution(lamp, template.T)
+                if OutputWavlFile is None:
+                    OutputWavlFile = soln
+                else:
+                    OutputWavlFile = np.vstack((OutputWavlFile, soln))
+            #WL calibration
+            # pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
+            # RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
+            # OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
+            # OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
   
-            ModelForDispersion =  PC.WLFITFUNC
-            _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--PixShiftGuess", str(PixShiftGuess), "--OutputWavlFile", OutputWavlFile,
-                              "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
+            # ModelForDispersion =  PC.WLFITFUNC
+            # _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--PixShiftGuess", str(PixShiftGuess), "--OutputWavlFile", OutputWavlFile,
+            #                   "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
             
-            AllOutWlSolFile = OutputWavlFile.format('all')
+            #AllOutWlSolFile = OutputWavlFile.format('all')
             OutputObjSpechdul = fits.open(OutputObjSpec)
-            AllOutWlSol = np.load(AllOutWlSolFile)
+  #          AllOutWlSol = np.load(AllOutWlSolFile)
             #to make wavelength data as ImageHdu
+            AllOutWlSol = OutputWavlFile
             AllOutWlSolImgHDU = fits.ImageHDU(AllOutWlSol, name = 'Wavelength')
             OutputObjSpechdul.append(AllOutWlSolImgHDU)
             
@@ -786,7 +808,10 @@ def xdSpectralExtraction_subrout(PC):
             OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
         else:
              raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
-           
+         
+        with open(os.path.join(PC.RAWDATADIR, PC.OUTDIR, night, 'Final_wlc_file.txt'),'w') as opfile:
+            opfile.write(OutputObjSpecWlCaliFinal)
+
     print('All nights over...')  
     
 def FluxCalibration_subrout(PC):
@@ -2005,6 +2030,8 @@ class PipelineConfig(object):
                         self.SPECCONFIGFILE = con.split()[1]
                     elif con.split()[0] == "WLFitFunc=" :
                         self.WLFITFUNC = con.split()[1]                        
+                    elif con.split()[0] == "RESPONSE_FUNCTION=":
+                        self.RESPFN = con.split()[1]
 
                     elif con.split()[0] == "NIGHTLOGFILE=" :
                         self.NIGHTLOGFILE = con.split()[1]
@@ -2061,7 +2088,7 @@ class InstrumentObject(object):
         StepsToRun = []
         if self.Name in ['TANSPEC']:
 #            StepsToRun += [0, 1, 2, 3, 4, 5, 11, 12]
-            StepsToRun += [0, 1, 2, 3, 4, 5, 6]
+            StepsToRun += [0, 1, 2, 3, 4, 5, 6, 7]
 #            if self.PC.IMGCOMBINE == 'Y':
 #                StepsToRun += [6]
 #            if self.PC.TODO == 'P':
