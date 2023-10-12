@@ -870,14 +870,18 @@ def FluxCalibration_subrout(PC):
         print('Flux calibration of photometry is yet to define in this pipeline')
     elif PC.TODO == 'SX':
         if PC.RESPFN == 'D':
-            response_function_name = os.path.join(pkgpath, 'data', 'INSTRUMENT_RESPONSE','Response_xd_s0.5.npy')
+            response_function_name = os.path.join(pkgpath, 'data', 'INSTRUMENT_RESPONSE','XD_Response_curve.npy')
         else:
             response_function_name = PC.RESPFN
         response_function = np.load(response_function_name)
         # if response_function.shape()[0] == :
         #     print('This is the instrument response for LR mode. You are working of XD mode spectra')
     elif PC.TODO == 'SL':
-        print('SL response function will define soon')
+        if PC.RESPFN == 'D':
+            response_function_name = os.path.join(pkgpath, 'data', 'INSTRUMENT_RESPONSE','LR_Response_curve.npy')
+        else:
+            response_function_name = PC.RESPFN
+        response_function = np.load(response_function_name)
     for night in directories:
         with open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'Final_wlc_file.txt'),'r') as wlc_data_files:
             wlc_data = list([data for data in wlc_data_files])
