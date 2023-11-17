@@ -225,7 +225,10 @@ def biweight_fits_files(files_list,
                 loglist.write('\n'+files)
                 loglist.close()
                 data = fits.getdata(files, ext=0)
-                var = fits.getdata(files, ext=1)
+                try:
+                    var = fits.getdata(files, ext=1)
+                except:
+                    var = data
                 file_header = extract_header(files)
                 if Data_candidate is None:
                     Data_candidate = data
@@ -337,7 +340,7 @@ def SpecMake(InputFiles, method = None, ScaleF = None):
         
 #Spectral Extraction and Wavelneght Calibration
 def SpectralExtraction_subrout(PC):
-    if PC.TODO == 'SX':
+    if PC.TODO == 'SL':
         mode = 'LR'
     else:
         mode = 'XD'
@@ -1126,6 +1129,7 @@ def SubtractSmoothGradient(PC,inputimg,outputimg):
 def CombDith_FlatCorr_subrout(PC,method="median"):
     """ This will combine (default=median) with avsigclip the images in single dither and also create corresponding normalized flats [,sky] and divide[,subtract] for flat [,sky] correction """
     directories = LoadDirectories(PC,CONF=False)
+    print(directories)
     for night in directories:
         PC.currentnight = night # Update the night directory for using GetFullPath()    
         print('Working on night: '+night)
@@ -1164,6 +1168,7 @@ def CombDith_FlatCorr_subrout(PC,method="median"):
         #Now iterate through every list of images to combine
         outlogFILE=open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'AllObjects-ProcessedImg.List'),'w')
         for imglist in ListofLists:
+            print(imglist)
             if len(imglist) == 1 : #Single image. no need to combine
                 OutCombimg=imglist[0]
                 shutil.copy2(night+'/'+imglist[0],os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,OutCombimg))  #Copying the file dito..
@@ -1188,8 +1193,15 @@ def CombDith_FlatCorr_subrout(PC,method="median"):
             Flats2Comb=set(Flats2Comb)  #Making a set to remove duplicates
             #Write all these flat names to a file.
             imgflatlistfname=os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,OutCombimg[:-5]+'.flatlist')
-            with open(imgflatlistfname,'w') as imgflatlistFILE :
-                imgflatlistFILE.write('\n'.join([PC.RAWDATADIR+'/'+night+'/'+fla for fla in Flats2Comb])+'\n')
+            flatlist = open(imgflatlistfname, 'w')
+            flatlist.close()
+            flats2comblist = []
+            # for fla in Flats2Comb:
+            #     flats2comblist.append(fla)
+            with open(imgflatlistfname,'a') as imgflatlistFILE :
+                # imgflatlistFILE.write('\n'.join([PC.RAWDATADIR+'/'+night+'/'+fla for fla in Flats2Comb])+'\n')
+                for fla in Flats2Comb:
+                    imgflatlistFILE.write(os.path.join(PC.RAWDATADIR, PC.OUTDIR, night, fla)+'\n')
 
 #            if SEPARATESKY=='Y' : #Now make list of skys to be combined for this image set
 #                Skys2Comb=[]
@@ -1207,10 +1219,15 @@ def CombDith_FlatCorr_subrout(PC,method="median"):
 #            iraf.imcombine(input='@'+imgflatlistfname, output=outflatname, combine="median", scale="median",reject="sigclip", statsec=FlatStatSection)
 #            Outputhdulist = combine_frames(imgflatlistfname,method='median')
 #            imarith.WriteFitsOutput(Outputhdulist,outflatname,overwrite=False)
-            
-            with open(imgflatlistfname,'r') as imgflatlistFILE : 
-                    FlatCombfileList=[(flatcombset.split()[0]) for flatcombset in imgflatlistFILE]
-                
+
+            with open(imgflatlistfname,'r') as imgflatlistFILE :
+                    FlatCombfileList1=[(flatcombset.split()[0]) for flatcombset in imgflatlistFILE]
+            FlatCombfileList = []
+            for fname in FlatCombfileList1:
+                path_file = os.path.split(fname)
+                filename = path_file[-1]
+                if filename[:9] == 'Biweight_':
+                    FlatCombfileList.append(fname)
                 #Outputhdulist = combine_frames(os.path.join(PC.RAWDATADIR,night,CombfileList), method='median')
             Outputhdulist = imarith.combine_frames(FlatCombfileList, method='median')
             imarith.WriteFitsOutput(Outputhdulist,os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,outflatname),overwrite=True)
@@ -1574,13 +1591,14 @@ def SelectionofFrames_subrout(PC):
 
         # Create a complete list of filters... we need to use flats from all nights
         CompleteFiltList = set()
+        print(FiltList) # Debugging
 #        if PC.USEALLFLATS == 'Y':
 #            for imgline in imglogFILElines:
 #                ImgFrame = Instrument.IdentifyFrame(imgline)
 #                if ImgFrame in ['BIAS','DARK', 'LAMP_SPEC']:  # Skip Bobvious Bias, Wavelength Calibration Lamps etc
 #                    continue    #Skip these and go to the next object.
 #                CompleteFiltList.add(shlex.split(imgline)[FiltColumn])
-            
+
 
         if (not FiltList) and (not CompleteFiltList)  : #No files in this directory
             print('\033[91m ALERT: \033[0m No Images to reduce found in directory : {0}'.format(night))
