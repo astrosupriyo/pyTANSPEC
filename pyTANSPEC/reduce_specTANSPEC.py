@@ -413,12 +413,13 @@ def SpectralExtraction_subrout(PC):
                 OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
         elif N == 1:
             OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final.fits'
-            print('final file', OutputObjSpecWlCaliFinal)
             OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = None, ScaleF=ScaleFac)
             OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
         else:
             raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
-
+        wlc_file = open(os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,'Final_wlc_file.txt'),'w')
+        wlc_file.write(OutputObjSpecWlCaliFinal)
+        wlc_file.close()
     print('All nights over...')
 
 
