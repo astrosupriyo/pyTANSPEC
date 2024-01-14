@@ -1194,8 +1194,6 @@ def CombDith_FlatCorr_subrout(PC,method="median"):
             Flats2Comb=set(Flats2Comb)  #Making a set to remove duplicates
             #Write all these flat names to a file.
             imgflatlistfname=os.path.join(PC.RAWDATADIR,PC.OUTDIR,night,OutCombimg[:-5]+'.flatlist')
-            flatlist = open(imgflatlistfname, 'w')
-            flatlist.close()
             flats2comblist = []
             # for fla in Flats2Comb:
             #     flats2comblist.append(fla)
