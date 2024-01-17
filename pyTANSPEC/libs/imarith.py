@@ -485,3 +485,147 @@ def WriteFitsOutput(Outputhdulist,OutputfileName,overwrite=False):
     Outputhdulist.writeto(OutputfileName,overwrite=overwrite)
     return OutputfileName
 
+
+
+def extract_header(filename):
+    '''
+    Parameters
+    -----------------------------------------
+    filename: The file which you want to get the header
+    ===================================================
+    Return
+    -----------------------------------------
+    header: Header of input file
+    '''
+    hdul = fits.open(filename)
+    header = hdul[0].header
+    return header
+
+def remove_repeated_values(candidate_list):
+    '''
+    Parameters
+    ----------------------------------------
+    candidate_list: List to remove the repeated elements
+    ====================================================
+    Return
+    ----------------------------------------
+    filtered_list: List which repeated elements removed from candidate_list
+    '''
+    filtered_list = []
+    for cand in candidate_list:
+        if cand in filtered_list:
+            pass
+        else:
+            filtered_list.append(cand)
+    return filtered_list
+
+def file_header_key(keys, filename):
+    keys_dict = {}
+    header = extract_header(filename)
+    for key in keys:
+        keys_dict[key] = header[key]
+    return keys_dict
+
+def ordered_header_keys(keys, file_list):
+    '''
+    Parameters
+    -------------------------------------------
+    keys: Keys in header that you wanted
+    file_list: list of files with path
+    =================================================
+    Return
+    -------------------------------------------
+    filtered_list: List of dictionaries with required values and avoided
+                   repetation of elements
+    '''
+    trimmed_list = []
+    for files in file_list:
+        keys_dict = file_header_key(keys, files)
+        trimmed_list.append(keys_dict)
+    filtered_list = remove_repeated_values(trimmed_list)
+    return filtered_list
+
+def grouping_files(key,
+                   files_list):
+    '''
+    Parameters
+    ------------------------
+    keys: List of header keys which is the basis of grouping.
+    files_list: list of files to group
+    ===============================
+    Returns
+    file_groups_list: Files are grouped in the basis of header keys made
+    sepaeate groups. All groups added to list, file_groups_list.
+    '''
+    print('grouping based on:', key)
+    filtered_list = ordered_header_keys(key, files_list)
+    no_of_groups = len(filtered_list)
+    files_list = files_list
+    files_list.sort()
+    grouped_headers = []
+    file_groups_list = []
+    for n in range(no_of_groups):
+        grouped_headers.append(filtered_list[n])
+        print(grouped_headers[-1])
+        grouped_files = []
+        for files in files_list:
+            file_header = file_header_key(key, files)
+            if file_header == grouped_headers[n]:
+                grouped_files.append(files)
+        file_groups_list.append(grouped_files)
+    return file_groups_list, grouped_headers
+
+def combine_files(files_list,
+                        input_path,
+                        output_path,
+                        keys=header_keys()):
+    '''
+    Parameters
+    --------------------------------
+    keys: List of header keys which is to be used for grouping of files.
+    input_path: Path of directory of files to average.
+    output_path: The path to the directory which the output files should
+    be saved.
+    ================================
+    Return
+    biweight files will be saved in the given path.
+    -------------------------------
+    '''
+    now = datetime.datetime.now()
+
+    print("now =", now)
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+    print('Input path:', input_path)
+    print('Output path:', output_path)
+    print('Header keys:', keys)
+ 
+    opfiles = []
+    files_list = [os.path.join(input_path, i) for i in files_list]
+   # files_list = os.listdir(input_path)
+    grouped_files_list, headers = grouping_files(keys, files_list)
+    q = 0
+ 
+ 
+    for groups in grouped_files_list:
+        print('groups', groups)
+        if groups == []:  # Exclude the case where the list is empty
+            pass
+        else:            
+            # Initialize variable to make the array of sum of data
+            try:
+                biweight_data = biweight_location(groups, method='biweight',FluxExt=0,VarExt=1)
+            except IndexError:
+                biweight_data = biweight_location(groups, method='biweight',FluxExt=0)
+            # Filename is generating by blinting the string Avg_ fame from
+            # file header and q, which is just a number to show the
+            # chronological order to avoid overwriting.
+            file_header = extract_header(groups[0])
+            filename = 'Biweight_' + file_header['FNAME'] + '_' + '.fits'
+            filename_path = os.path.join(output_path,
+                                         filename)
+            file_header['FNAME'] = filename
+            opfiles.append(filename)
+            hdul = biweight_data
+            hdul.writeto(filename_path, overwrite=True)
+        q += 1
+    return opfiles

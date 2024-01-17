@@ -36,7 +36,7 @@ from .libs import imarith
 import WavelengthCalibrationTool.reidentify as reident
 from WavelengthCalibrationTool import recalibrate
 import SpectrumExtractor.spectrum_extractor as specextractor
-
+from .libs import imarith
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -68,212 +68,6 @@ def WriteSpecToFitsFile(SpecFlux, Wavel, fitsheader):
     hdulist = fits.HDUList([hdul1, hdul2])
     return hdulist  
 
-
-'''
-Functions to do the biweight the fits files
-'''
-def header_keys():
-    '''
-    Returns
-    -------------------------
-    List of header keys to group the files
-    '''
-    return ['SLIT', 'GRATING', 'OBJECT', 'CALMIR', 'ARGONL', 'NEONL', 'CONT2L']
-
-def extract_header(filename):
-    '''
-    Parameters
-    -----------------------------------------
-    filename: The file which you want to get the header
-    ===================================================
-    Return
-    -----------------------------------------
-    header: Header of input file
-    '''
-    hdul = fits.open(filename)
-    header = hdul[0].header
-    return header
-
-def remove_repeated_values(candidate_list):
-    '''
-    Parameters
-    ----------------------------------------
-    candidate_list: List to remove the repeated elements
-    ====================================================
-    Return
-    ----------------------------------------
-    filtered_list: List which repeated elements removed from candidate_list
-    '''
-    filtered_list = []
-    for cand in candidate_list:
-        if cand in filtered_list:
-            pass
-        else:
-            filtered_list.append(cand)
-    return filtered_list
-
-def file_header_key(keys, filename):
-    keys_dict = {}
-    header = extract_header(filename)
-    for key in keys:
-        keys_dict[key] = header[key]
-    return keys_dict
-
-def ordered_header_keys(keys, file_list):
-    '''
-    Parameters
-    -------------------------------------------
-    keys: Keys in header that you wanted
-    file_list: list of files with path
-    =================================================
-    Return
-    -------------------------------------------
-    filtered_list: List of dictionaries with required values and avoided
-                   repetation of elements
-    '''
-    trimmed_list = []
-    for files in file_list:
-        keys_dict = file_header_key(keys, files)
-        trimmed_list.append(keys_dict)
-    filtered_list = remove_repeated_values(trimmed_list)
-    return filtered_list
-
-def grouping_files(key,
-                   files_list):
-    '''
-    Parameters
-    ------------------------
-    keys: List of header keys which is the basis of grouping.
-    files_list: list of files to group
-    ===============================
-    Returns
-    file_groups_list: Files are grouped in the basis of header keys made
-    sepaeate groups. All groups added to list, file_groups_list.
-    '''
-    print('grouping based on:', key)
-    filtered_list = ordered_header_keys(key, files_list)
-    no_of_groups = len(filtered_list)
-    files_list = files_list
-    files_list.sort()
-    grouped_headers = []
-    file_groups_list = []
-    for n in range(no_of_groups):
-        grouped_headers.append(filtered_list[n])
-        print(grouped_headers[-1])
-        grouped_files = []
-        for files in files_list:
-            file_header = file_header_key(key, files)
-            if file_header == grouped_headers[n]:
-                grouped_files.append(files)
-        file_groups_list.append(grouped_files)
-    return file_groups_list, grouped_headers
-
-def biweight_fits_files(files_list,
-                        input_path,
-                        output_path,
-                        keys=header_keys()):
-    '''
-    Parameters
-    --------------------------------
-    keys: List of header keys which is to be used for grouping of files.
-    input_path: Path of directory of files to average.
-    output_path: The path to the directory which the output files should
-    be saved.
-    ================================
-    Return
-    biweight files will be saved in the given path.
-    -------------------------------
-    '''
-    now = datetime.datetime.now()
-    logfile = os.path.join(output_path, 'Avg_loglist.txt')
-    print("now =", now)
-    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-    print('Input path:', input_path)
-    print('Output path:', output_path)
-    print('Header keys:', keys)
-    loglist = open(logfile, 'w')
-    loglist.write('Code executed at: {}'.format(dt_string))
-    loglist.close()
-    loglist = open(logfile, 'w')
-    loglist.write('########### Object start Here ############### \n')
-    loglist.close()
-    opfiles = []
-    files_list = [os.path.join(input_path, i) for i in files_list]
-   # files_list = os.listdir(input_path)
-    grouped_files_list, headers = grouping_files(keys, files_list)
-    q = 0
-    loglist = open(logfile, 'a')
-    loglist.write('\n -------------------- Data Sets ----------------\n')
-    loglist.close()
-    for groups in grouped_files_list:
-        print('groups', groups)
-        if groups == []:  # Exclude the case where the list is empty
-            pass
-        else:
-            with open(logfile, 'a') as f:
-                f.write('Chronological order:'+str(q))
-                for key, value in file_header_key(keys, groups[0]).items():
-                    f.write('\n%s\t:\t%s' % (key, value))
-            
-            # Initialize variable to make the array of sum of data
-            Data_candidate = None
-            Variance = None
-            length = 0
-            for files in groups:
-                print('file:',files)
-                loglist = open(logfile, 'a')
-                loglist.write('\n'+files)
-                loglist.close()
-                data = fits.getdata(files, ext=0)
-                try:
-                    var = fits.getdata(files, ext=1)
-                except IndexError:
-                    var = data
-                file_header = extract_header(files)
-                if Data_candidate is None:
-                    Data_candidate = data
-                    Variance = var
-                else:
-                    Data_candidate = np.dstack((Data_candidate, data))
-                    Variance = Variance + var
-                length += 1
-            print('Starting biweight')
-            if len(groups) > 1:
-                biweight_data = biweight_location(Data_candidate, axis=2)  # Median the data
-            else:
-                biweight_data = Data_candidate
-            print('Biweight done', np.shape(biweight_data))
-            Variance = Variance / length**2
-            # Filename is generating by blinting the string Avg_ fame from
-            # file header and q, which is just a number to show the
-            # chronological order to avoid overwriting.
-            filename = 'Biweight_' + file_header['FNAME'] + '_' + '.fits'
-            filename_path = os.path.join(output_path,
-                                         filename)
-            file_header['FNAME'] = filename
-            hdu = fits.PrimaryHDU(biweight_data, file_header)
-            var = fits.ImageHDU(Variance)
-            hdul = fits.HDUList([hdu, var])
-            hdul.writeto(filename_path, overwrite=True)
-            print('file saved_as', filename_path, 'time:')
-            loglist = open(logfile, 'a')
-            loglist.write('\n No of sets Averaged: {}\n'.format(length))
-            loglist.close()
-            opfiles.append(filename)
-            loglist = open(logfile, 'a')
-            loglist.write('\n saved to:' + filename_path + '\n')
-            loglist.close()
-        q += 1
-    loglist = open(logfile, 'a')
-    loglist.write('\n *********** All process over ******************\n ')
-    loglist.close()
-    print(opfiles)
-    return opfiles
-
-
-'''
-Averaging done
-'''
 
 def SpecMake(InputFiles, method = None, ScaleF = None):
     """ First scaled the spectra based on background windows and spectra extraction window
@@ -426,53 +220,6 @@ def SpectralExtraction_subrout(PC):
 
 def LrSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputObjSpec,APERTUREWINDOW,BKGWINDOWS,night,Img2Lamp, Img2NeLamp, Img2Filt, Filt2finalspecs, img):
     # """ Extracts spectra from 2d image and also applies wavelength calibration """
-    # print('You are doing extraction of LR mode spectra')
-    
-    # directories = LoadDirectories(PC,CONF=False)
-    # for night in directories:
-    #     PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
-    #     print('Working on night: '+night)
-    #     try:
-    #         #First we load the Spectrastoextract_Lamp_BandFilter.txt
-    #         SpecslistFILE=open(PC.GetFullPath('Spectrastoextract_Lamp_BandFilter.txt'),'r')
-    #     except IOError:
-    #         print('Could not find Spectrastoextract_Lamp_BandFilter.txt in this directory. Hence skipping %s directory'%(night))
-    #         continue
-    #     #Image to Lamp file dictionary
-    #     Img2Lamp = []  #They are first born as lists...
-    #     Img2NeLamp = []
-    #     Img2Filt = []
-    #     AllImglist = []
-    #     for line in SpecslistFILE:
-    #         line = shlex.split(line.rstrip())
-    #         Img2Lamp.append((line[0],line[1]))
-    #         Img2NeLamp.append((line[0],line[2]))
-    #         Img2Filt.append((line[0],line[3]))
-    #         AllImglist.append(line[0])
-    #     SpecslistFILE.close()
-    #     Img2Lamp = dict(Img2Lamp)
-    #     Img2NeLamp = dict(Img2NeLamp)
-    #     Img2Filt = dict(Img2Filt)
-    #     #Initialising an empty dictionary for storing spectra of each filter
-    #     Filt2finalspecs = dict()
-    #     for filt in set(Img2Filt.values()) : Filt2finalspecs[filt] = []
-
-    #     OutputObjSpecWlCaliList = [] # Initialising an empty array for storing wl calibrated spectra
-    #     for img in AllImglist:
-    #         print("Working on image "+night+" "+img)
-    #         leftover = glob.glob(os.path.splitext(img)[0]+'_*.fits')  #Clean up of some previous attempts if any..
-    #         leftover += glob.glob(os.path.splitext(img)[0]+'.ms.fits')
-    #         if len(leftover) > 0 :
-    #             if not os.path.isdir('Leftover'): os.makedirs('Leftover') 
-    #             for lft in leftover :
-    #                 shutil.move(lft,'Leftover/')
-
-    #         # Spectrum extraction for object
-    #         SpectrumFile = PC.GetFullPath(img)
-    #         OutputObjSpec = SpectrumFile.rstrip('.fits')+'.ms.fits'
-    #         #ReFitApertureInXD = 'p1'
-    #         APERTUREWINDOW = PC.APERTUREWINDOW
-    #         BKGWINDOWS = PC.BKGWINDOWS            
                         
     #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
     pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
@@ -607,77 +354,9 @@ def LrSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputO
     OutputObjSpechdul.writeto(OutputObjSpecWlCali)            
     OutputObjSpecWlCaliList.append(OutputObjSpecWlCali)                        
     return OutputObjSpecWlCaliList
-        ## to combine images or not
-    #     N = len(OutputObjSpecWlCaliList)
-
-    #     if PC.SCOMBINE == 'YES' and N> 1:
-    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final' + '.avg.fits'
-    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = 'mean',ScaleF=ScaleFac)
-    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-    #     elif PC.SCOMBINE == 'NO' and N> 1:
-    #         for i in range(N):
-    #             OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[i].rstrip('.fits') + '.final.fits'
-    #             OutputObjSpecWlCaliFinalhdul = SpecMake([OutputObjSpecWlCaliList[i]], method = None,ScaleF=ScaleFac)
-    #             OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-    #     elif N == 1:
-    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final.fits'
-    #         print('final file', OutputObjSpecWlCaliFinal)
-    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = None, ScaleF=ScaleFac)
-    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-    #     else:
-    #         raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
-
-    # print('All nights over...')
 
 def xdSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputObjSpec,APERTUREWINDOW,BKGWINDOWS,night,Img2Lamp, Img2NeLamp, Img2Filt, Filt2finalspecs, img):
     """ Extracts spectra from 2d image and also applies wavelength calibration """
-    # print('You are doing extraction of XD mode spectra')
-    
-    # directories = LoadDirectories(PC,CONF=False)
-    # for night in directories:
-    #     PC.currentnight = night # Updating the night directory for using PC.GetFullPath()
-    #     print('Working on night: '+night)
-    #     try:
-    #         #First we load the Spectrastoextract_Lamp_BandFilter.txt
-    #         SpecslistFILE=open(PC.GetFullPath('Spectrastoextract_Lamp_BandFilter.txt'),'r')
-    #     except IOError:
-    #         print('Could not find Spectrastoextract_Lamp_BandFilter.txt in this directory. Hence skipping %s directory'%(night))
-    #         continue
-    #     #Image to Lamp file dictionary
-    #     Img2Lamp = []  #They are first born as lists...
-    #     Img2NeLamp = []
-    #     Img2Filt = []
-    #     AllImglist = []
-    #     for line in SpecslistFILE:
-    #         line = shlex.split(line.rstrip())
-    #         Img2Lamp.append((line[0],line[1]))
-    #         Img2NeLamp.append((line[0],line[2]))
-    #         Img2Filt.append((line[0],line[3]))
-    #         AllImglist.append(line[0])
-    #     SpecslistFILE.close()
-    #     Img2Lamp = dict(Img2Lamp)
-    #     Img2NeLamp = dict(Img2NeLamp)
-    #     Img2Filt = dict(Img2Filt)
-    #     #Initialising an empty dictionary for storing spectra of each filter
-    #     Filt2finalspecs = dict()
-    #     for filt in set(Img2Filt.values()) : Filt2finalspecs[filt] = []
-
-    #     OutputObjSpecWlCaliList = [] # Initialising an empty array for storing wl calibrated spectra
-    #     for img in AllImglist:
-    #         print("Working on image "+night+" "+img)
-    #         leftover = glob.glob(os.path.splitext(img)[0]+'_*.fits')  #Clean up of some previous attempts if any..
-    #         leftover += glob.glob(os.path.splitext(img)[0]+'.ms.fits')
-    #         if len(leftover) > 0 :
-    #             if not os.path.isdir('Leftover'): os.makedirs('Leftover') 
-    #             for lft in leftover :
-    #                 shutil.move(lft,'Leftover/')
-
-    #         # Spectrum extraction for object
-    #         SpectrumFile = PC.GetFullPath(img)
-    #         OutputObjSpec = SpectrumFile.rstrip('.fits')+'.ms.fits'
-    #         #ReFitApertureInXD = 'p1'
-    #         APERTUREWINDOW = PC.APERTUREWINDOW
-    #         BKGWINDOWS = PC.BKGWINDOWS            
 
     #finding the configuration file for spectrum extraction as well as ContinuumFile and ApertureLabel as references
     pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
@@ -817,19 +496,6 @@ def xdSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputO
             OutputWavlFile = soln
         else:
             OutputWavlFile = np.vstack((OutputWavlFile, soln))
-    #WL calibration
-    # pkgpath = os.path.split(pkgutil.get_loader('pyTANSPEC').get_filename())[0]
-    # RefDispTableFile = os.path.join(pkgpath,'data','LAMPIDENTDIR',slit,'tanspecArNe' + '{}' + '.txt')
-    # OutDispTableFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutDispTableFile' + '{}'
-    # OutputWavlFile =  os.path.splitext(OutputCombLampSpec)[0] + '.OutputWavlFile' + '{}' + '.npy'
-
-    # ModelForDispersion =  PC.WLFITFUNC
-    # _ = reident.main([OutputCombLampSpec, RefDispTableFile, OutDispTableFile, "--PixShiftGuess", str(PixShiftGuess), "--OutputWavlFile", OutputWavlFile,
-    #                   "--ModelForDispersion", ModelForDispersion, "--SavePlots", "--StackOrders"])            
-
-    #           AllOutWlSolFile = OutputWavlFile.format('all')
-    #          OutputObjSpechdul = fits.open(OutputObjSpec)
-    #          AllOutWlSol = np.load(AllOutWlSolFile)
     #to make wavelength data as ImageHdu
     AllOutWlSol = OutputWavlFile
     OutputObjSpechdul = fits.open(OutputObjSpec)
@@ -842,26 +508,6 @@ def xdSpectralExtraction_subrout(PC,OutputObjSpecWlCaliList,SpectrumFile,OutputO
     OutputObjSpechdul.writeto(OutputObjSpecWlCali)            
     OutputObjSpecWlCaliList.append(OutputObjSpecWlCali)                        
     return OutputObjSpecWlCaliList   
-    #     ## to combine images or not
-    #     N = len(OutputObjSpecWlCaliList)
-
-    #     if PC.SCOMBINE == 'YES' and N> 1:
-    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final' + '.avg.fits'
-    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = 'mean',ScaleF=ScaleFac)
-    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-    #     elif PC.SCOMBINE == 'NO' and N> 1:
-    #         for i in range(N):
-    #             OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[i].rstrip('.fits') + '.final.fits'
-    #             OutputObjSpecWlCaliFinalhdul = SpecMake([OutputObjSpecWlCaliList[i]], method = None,ScaleF=ScaleFac)
-    #             OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-    #     elif N==1:
-    #         OutputObjSpecWlCaliFinal = OutputObjSpecWlCaliList[0].rstrip('.fits') + '.final.fits'
-    #         OutputObjSpecWlCaliFinalhdul = SpecMake(OutputObjSpecWlCaliList, method = None, ScaleF=ScaleFac)
-    #         OutputObjSpecWlCaliFinalhdul.writeto(OutputObjSpecWlCaliFinal, overwrite=True)
-    #     else:
-    #          raise NotImplementedError('Unknown combine {0}'.format(PC.SCOMBINE))
-           
-    # print('All nights over...')  
 
     
 def FluxCalibration_subrout(PC):
@@ -1379,7 +1025,8 @@ def Manual_InspectCalframes_subrout(PC):
                 # Averaging have to be done here, then add file names as last 2 elements.
                 input_path = night
                 output_path = os.path.join(PC.RAWDATADIR,PC.OUTDIR,night)
-                avglampfiles = biweight_fits_files(FinalCalImgs, input_path, output_path, keys=header_keys())
+                header_keys = ['SLIT', 'GRATING', 'OBJECT', 'CALMIR', 'ARGONL', 'NEONL', 'CONT1L','CONT2L']
+                avglampfiles = imarith.combine_files(FinalCalImgs, input_path, output_path, keys=header_keys)
                 flag_list = FinalCalImgs
                 FinalCalImgs.append(avglampfiles[0])
                 if len(avglampfiles)>1:
