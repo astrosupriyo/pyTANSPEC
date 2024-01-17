@@ -227,7 +227,7 @@ def biweight_fits_files(files_list,
                 data = fits.getdata(files, ext=0)
                 try:
                     var = fits.getdata(files, ext=1)
-                except:
+                except IndexError:
                     var = data
                 file_header = extract_header(files)
                 if Data_candidate is None:
