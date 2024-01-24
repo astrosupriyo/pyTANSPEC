@@ -578,7 +578,7 @@ def grouping_files(key,
 def combine_files(files_list,
                         input_path,
                         output_path,
-                        keys=header_keys()):
+                        keys):
     '''
     Parameters
     --------------------------------
