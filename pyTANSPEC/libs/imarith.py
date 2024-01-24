@@ -345,7 +345,7 @@ def divide_frames(Operand1File,Operand2File,FluxExt=(),VarExt=(),HeaderHist=''):
         Operand2_is_float = False
         Operand2_is_array = True
         logging.info('Dividing {0} / {1}'.format(Operand1File,HeaderHist))
-        if len(Operand2File.shape) is 3:
+        if len(Operand2File.shape) == 3:
             divi = Operand2File[:,:,0]
             vari = Operand2File[:,:,1]
         else:
@@ -373,7 +373,7 @@ def divide_frames(Operand1File,Operand2File,FluxExt=(),VarExt=(),HeaderHist=''):
             # No Variance array asked to update
             pass
         else:
-            if Operand2_is_float or vari is 1:
+            if Operand2_is_float or vari == 1:
                 Outputhdulist[extV].data /= divisor**2
             else: 
                 if Operand2_is_array:
@@ -614,9 +614,9 @@ def combine_files(files_list,
         else:            
             # Initialize variable to make the array of sum of data
             try:
-                biweight_data = biweight_location(groups, method='biweight',FluxExt=0,VarExt=1)
+                biweight_data = combine_frames(groups, method='biweight',FluxExt=[0],VarExt=[1])
             except IndexError:
-                biweight_data = biweight_location(groups, method='biweight',FluxExt=0)
+                biweight_data = combine_frames(groups, method='biweight',FluxExt=[0])
             # Filename is generating by blinting the string Avg_ fame from
             # file header and q, which is just a number to show the
             # chronological order to avoid overwriting.
